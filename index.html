@@ -69,18 +69,22 @@
     .nav-btn.active{font-weight:800}
     #navSearch{display:none}
     #navUpdate{
-      min-width:190px;
-      min-height:72px;
-      padding:8px 26px 9px;
-      border-radius:16px;
+      width:min(240px,60vw);
+      min-width:210px;
+      height:56px;
+      padding:0 22px;
+      border-radius:15px;
       background:linear-gradient(180deg,#2a8cff,#176dff);
       color:#fff;
-      font-size:16px;
+      font-size:18px;
       font-weight:800;
-      box-shadow:0 5px 12px rgba(23,119,255,.22);
+      flex-direction:row;
+      justify-content:center;
+      gap:10px;
+      box-shadow:0 3px 9px rgba(23,119,255,.18);
     }
-    #navUpdate .icon{font-size:36px}
-    #navUpdate:active{transform:translateY(1px); box-shadow:0 3px 8px rgba(23,119,255,.2)}
+    #navUpdate .icon{font-size:28px; line-height:1}
+    #navUpdate:active{transform:translateY(1px); box-shadow:0 2px 6px rgba(23,119,255,.18)}
     .sheet-backdrop{position:fixed; inset:0; background:rgba(17,24,39,.28); display:none; z-index:30}
     .sheet-backdrop.show{display:block}
     .sheet{position:absolute; left:0; right:0; bottom:0; background:#fff; border-radius:24px 24px 0 0; padding:14px 18px calc(20px + var(--safe-bottom)); box-shadow:0 -20px 40px rgba(17,24,39,.18); transform:translateY(100%); transition:transform .25s ease}
