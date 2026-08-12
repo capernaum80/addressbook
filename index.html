@@ -109,7 +109,6 @@
           <div class="title">하수처리장 TMAP</div>
           <div class="version" id="versionText">로컬 주소록 불러오는 중...</div>
         </div>
-        <button class="mini" id="refreshTopBtn" type="button">새로고침</button>
       </div>
       <div class="search-box">
         <span class="search-icon">⌕</span>
@@ -135,7 +134,7 @@
   <div class="bottom-nav">
     <div class="bottom-nav-inner">
       <button class="nav-btn active" id="navSearch" type="button"><div class="icon">⌕</div><div>검색</div></button>
-      <button class="nav-btn" id="navUpdate" type="button"><div class="icon">↻</div><div>업데이트</div></button>
+      <button class="nav-btn" id="navUpdate" type="button"><div class="icon">↻</div><div>주소록 업데이트</div></button>
     </div>
   </div>
 
@@ -189,7 +188,6 @@ const el = {
   tmapBtn: document.getElementById('tmapBtn'),
   closeSheetBtn: document.getElementById('closeSheetBtn'),
   toast: document.getElementById('toast'),
-  refreshTopBtn: document.getElementById('refreshTopBtn'),
 };
 
 function normalizeText(value){
@@ -552,7 +550,6 @@ el.chips.forEach(chip => chip.addEventListener('click', () => {
 }));
 el.navSearch.addEventListener('click', showSearchView);
 el.navUpdate.addEventListener('click', checkForUpdates);
-el.refreshTopBtn.addEventListener('click', bootstrapFromServer);
 el.sheetBackdrop.addEventListener('click', e => { if (e.target === el.sheetBackdrop) closeSheet(); });
 el.copyBtn.addEventListener('click', copySelectedAddress);
 el.tmapBtn.addEventListener('click', openTmap);
