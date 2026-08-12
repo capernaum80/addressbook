@@ -1,6 +1,6 @@
 {
-  "name": "주소록",
-  "short_name": "주소록",
+  "name": "하수처리장 TMAP",
+  "short_name": "하수처리장 TMAP",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f5f7fb",
