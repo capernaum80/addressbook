@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#1677ff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="주소록">
+  <meta name="format-detection" content="telephone=no">
+  <title>주소록</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <style>
+    :root{
+      --blue:#1777ff;
+      --blue2:#1d96ff;
+      --bg:#f5f7fb;
+      --text:#111827;
+      --muted:#6b7280;
+      --line:#e5e7eb;
+      --card:#ffffff;
+      --shadow:0 8px 20px rgba(15, 23, 42, .07);
+      --radius:18px;
+      --safe-top: env(safe-area-inset-top);
+      --safe-bottom: env(safe-area-inset-bottom);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;}
+    body{min-height:100vh;}
+    .app{max-width:520px; margin:0 auto; min-height:100vh; background:linear-gradient(180deg,#f9fbff 0,#f4f7fb 42%,#f3f6fa 100%); position:relative; padding-bottom:88px;}
+    .top{padding:calc(18px + var(--safe-top)) 16px 10px; position:sticky; top:0; z-index:10; backdrop-filter: blur(12px); background:rgba(249,251,255,.88); border-bottom:1px solid rgba(229,231,235,.6)}
+    .titlebar{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
+    .title{font-size:24px; font-weight:800; letter-spacing:-.04em}
+    .version{font-size:12px; color:var(--muted)}
+    .search-box{display:flex; align-items:center; gap:10px; background:#fff; border:2px solid rgba(23,119,255,.9); border-radius:18px; min-height:58px; padding:0 14px; box-shadow:var(--shadow)}
+    .search-icon{font-size:22px; color:#365da8}
+    .search-input{border:none; outline:none; background:transparent; width:100%; font-size:20px; color:#111; padding:0;}
+    .clear-btn{border:none; background:transparent; font-size:28px; color:#9ca3af; padding:0 2px; cursor:pointer}
+    .chips{display:flex; gap:10px; padding:14px 2px 4px; overflow:auto}
+    .chip{flex:0 0 auto; border:1px solid #d7dce5; background:#fff; color:#111; min-width:82px; height:42px; border-radius:13px; font-size:16px; font-weight:700; cursor:pointer; box-shadow:0 3px 10px rgba(15,23,42,.04)}
+    .chip.active{background:linear-gradient(180deg,#2a8cff,#176dff); color:#fff; border-color:#176dff}
+    .content{padding:16px}
+    .hero{margin-top:46px; text-align:center; color:var(--muted)}
+    .hero .big{font-size:120px; opacity:.16; line-height:1}
+    .hero h2{margin:12px 0 8px; color:#111827; font-size:34px; letter-spacing:-.04em}
+    .hero p{margin:0; font-size:19px; line-height:1.55}
+    .status-card,.update-card{background:#fff; border-radius:24px; box-shadow:var(--shadow); padding:28px 22px; text-align:center}
+    .status-card .emoji{font-size:72px; line-height:1; margin-bottom:10px}
+    .status-card h3,.update-card h3{margin:8px 0 4px; font-size:31px; letter-spacing:-.04em}
+    .status-card p,.update-card p{margin:0; color:var(--muted); font-size:19px; line-height:1.55}
+    .hint{margin-top:14px; font-size:14px; color:var(--muted)}
+    .count{padding:4px 2px 10px; color:#4b5563; font-size:15px; font-weight:700}
+    .list{display:flex; flex-direction:column; gap:12px}
+    .item{background:#fff; border-radius:18px; box-shadow:var(--shadow); padding:16px 14px; display:flex; align-items:center; gap:12px; cursor:pointer; border:1px solid rgba(255,255,255,.9)}
+    .item-main{min-width:0; flex:1}
+    .item-title{font-size:24px; font-weight:800; letter-spacing:-.03em; margin-bottom:4px; word-break:keep-all}
+    .item-address{font-size:20px; color:#374151; word-break:break-word}
+    .tag{display:inline-flex; align-items:center; height:26px; padding:0 10px; border-radius:999px; font-size:13px; font-weight:800; margin-top:8px}
+    .tag.plant{background:#eff6ff; color:#1d4ed8}
+    .tag.pump{background:#edfdf3; color:#0f9f57}
+    .go{width:46px; height:46px; border-radius:50%; border:none; background:linear-gradient(180deg,#2a8cff,#176dff); color:#fff; font-size:22px; box-shadow:0 8px 16px rgba(23,119,255,.25); cursor:pointer}
+    .bottom-nav{position:fixed; left:0; right:0; bottom:0; display:flex; justify-content:center; pointer-events:none}
+    .bottom-nav-inner{pointer-events:auto; width:min(520px,100%); background:rgba(255,255,255,.95); backdrop-filter: blur(12px); border-top:1px solid rgba(229,231,235,.9); display:flex; padding:10px 0 calc(10px + var(--safe-bottom));}
+    .nav-btn{flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; border:none; background:transparent; font-size:12px; color:#6b7280; cursor:pointer}
+    .nav-btn .icon{font-size:28px; line-height:1}
+    .nav-btn.active{color:#176dff; font-weight:800}
+    .sheet-backdrop{position:fixed; inset:0; background:rgba(17,24,39,.28); display:none; z-index:30}
+    .sheet-backdrop.show{display:block}
+    .sheet{position:absolute; left:0; right:0; bottom:0; background:#fff; border-radius:24px 24px 0 0; padding:14px 18px calc(20px + var(--safe-bottom)); box-shadow:0 -20px 40px rgba(17,24,39,.18); transform:translateY(100%); transition:transform .25s ease}
+    .sheet-backdrop.show .sheet{transform:translateY(0)}
+    .grab{width:58px; height:6px; border-radius:999px; background:#d1d5db; margin:0 auto 12px}
+    .sheet h3{margin:0 0 6px; text-align:center; font-size:32px; letter-spacing:-.05em}
+    .sheet .address-line{display:flex; gap:8px; align-items:flex-start; justify-content:center; margin:0 0 18px; color:#374151; font-size:20px; line-height:1.5; text-align:center}
+    .sheet-btn{width:100%; height:58px; border-radius:16px; border:2px solid #176dff; font-size:23px; font-weight:800; background:#fff; color:#176dff; margin-top:10px; cursor:pointer}
+    .sheet-btn.primary{background:linear-gradient(180deg,#2a8cff,#176dff); color:#fff; border:none}
+    .sheet-btn.gray{border:none; background:#eef2f7; color:#4b5563}
+    .toast{position:fixed; left:50%; bottom:calc(98px + var(--safe-bottom)); transform:translateX(-50%) translateY(20px); background:rgba(17,24,39,.92); color:#fff; padding:12px 16px; border-radius:999px; font-size:14px; opacity:0; pointer-events:none; transition:.2s ease; z-index:40}
+    .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+    .update-card .rows{margin-top:16px; border:1px solid #e5e7eb; border-radius:16px; overflow:hidden; text-align:left}
+    .update-card .row{display:flex; justify-content:space-between; gap:12px; padding:12px 14px; font-size:16px; border-top:1px solid #eef2f7}
+    .update-card .row:first-child{border-top:none}
+    .update-actions{display:flex; gap:10px; margin-top:18px}
+    .update-actions button{flex:1; height:56px; border-radius:16px; font-size:20px; font-weight:800; cursor:pointer}
+    .btn-outline{border:2px solid #94a3b8; color:#334155; background:#fff}
+    .btn-primary{border:none; color:#fff; background:linear-gradient(180deg,#2a8cff,#176dff)}
+    .sub-actions{display:flex; justify-content:space-between; align-items:center; margin-top:8px}
+    .mini{border:none; background:transparent; color:#176dff; font-size:13px; font-weight:700; cursor:pointer}
+    @media (max-width:420px){
+      .title{font-size:22px}
+      .search-input{font-size:18px}
+      .item-title{font-size:21px}
+      .item-address,.sheet .address-line{font-size:17px}
+      .sheet h3{font-size:28px}
+      .hero h2,.status-card h3,.update-card h3{font-size:28px}
+      .hero p,.status-card p,.update-card p{font-size:17px}
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="top">
+      <div class="titlebar">
+        <div>
+          <div class="title">주소록</div>
+          <div class="version" id="versionText">로컬 주소록 불러오는 중...</div>
+        </div>
+        <button class="mini" id="refreshTopBtn" type="button">새로고침</button>
+      </div>
+      <div class="search-box">
+        <span class="search-icon">⌕</span>
+        <input id="searchInput" class="search-input" type="text" placeholder="어디로 갈까요?" autocomplete="off" />
+        <button id="clearBtn" class="clear-btn" type="button" aria-label="검색어 지우기">×</button>
+      </div>
+      <div class="chips">
+        <button class="chip active" data-filter="all" type="button">전체</button>
+        <button class="chip" data-filter="plant" type="button">처리장</button>
+        <button class="chip" data-filter="pump" type="button">맨홀·펌프장</button>
+      </div>
+    </header>
+
+    <section class="content" id="searchView">
+      <div id="searchState"></div>
+      <div id="resultHeader" class="count" style="display:none"></div>
+      <div id="resultList" class="list"></div>
+    </section>
+
+    <section class="content" id="updateView" style="display:none"></section>
+  </main>
+
+  <div class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <button class="nav-btn active" id="navSearch" type="button"><div class="icon">⌕</div><div>검색</div></button>
+      <button class="nav-btn" id="navUpdate" type="button"><div class="icon">↻</div><div>업데이트</div></button>
+    </div>
+  </div>
+
+  <div class="sheet-backdrop" id="sheetBackdrop">
+    <div class="sheet">
+      <div class="grab"></div>
+      <h3 id="sheetTitle">장소명</h3>
+      <div class="address-line"><span>📍</span><span id="sheetAddress"></span></div>
+      <button class="sheet-btn" id="copyBtn" type="button">주소 복사</button>
+      <button class="sheet-btn primary" id="tmapBtn" type="button">TMAP으로 길안내</button>
+      <button class="sheet-btn gray" id="closeSheetBtn" type="button">취소</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+<script>
+const PROXY_URL = '여기에_배포한_웹앱_URL을_붙여넣으세요';
+const STORAGE_KEY = 'facility_addressbook_cache_v1';
+const STORAGE_META_KEY = 'facility_addressbook_meta_v1';
+const REQUEST_TIMEOUT = 20000;
+const RETRY_DELAYS = [800, 1500];
+
+const state = {
+  records: [],
+  filtered: [],
+  filter: 'all',
+  query: '',
+  selected: null,
+  currentView: 'search',
+  localMeta: null,
+  remoteMeta: null,
+};
+
+const el = {
+  searchInput: document.getElementById('searchInput'),
+  clearBtn: document.getElementById('clearBtn'),
+  versionText: document.getElementById('versionText'),
+  searchState: document.getElementById('searchState'),
+  resultHeader: document.getElementById('resultHeader'),
+  resultList: document.getElementById('resultList'),
+  chips: [...document.querySelectorAll('.chip')],
+  navSearch: document.getElementById('navSearch'),
+  navUpdate: document.getElementById('navUpdate'),
+  searchView: document.getElementById('searchView'),
+  updateView: document.getElementById('updateView'),
+  sheetBackdrop: document.getElementById('sheetBackdrop'),
+  sheetTitle: document.getElementById('sheetTitle'),
+  sheetAddress: document.getElementById('sheetAddress'),
+  copyBtn: document.getElementById('copyBtn'),
+  tmapBtn: document.getElementById('tmapBtn'),
+  closeSheetBtn: document.getElementById('closeSheetBtn'),
+  toast: document.getElementById('toast'),
+  refreshTopBtn: document.getElementById('refreshTopBtn'),
+};
+
+function normalizeText(value){
+  return String(value || '')
+    .toLowerCase()
+    .replace(/충청남도/g,'')
+    .replace(/부여군/g,'')
+    .replace(/[\s\-_/.,()]/g,'');
+}
+
+function groupType(category, name){
+  const s = `${category||''} ${name||''}`;
+  return /처리장/.test(s) ? 'plant' : 'pump';
+}
+
+function buildFullAddress(address){
+  const text = String(address || '').trim();
+  if (!text) return '';
+  if (/^충청남도\s*부여군/.test(text)) return text;
+  return '충청남도 부여군 ' + text;
+}
+
+function formatTime(value){
+  if (!value) return '';
+  const d = new Date(value);
+  if (isNaN(d)) return String(value);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mi = String(d.getMinutes()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+}
+
+function saveLocal(records, meta){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+  localStorage.setItem(STORAGE_META_KEY, JSON.stringify(meta));
+}
+
+function loadLocal(){
+  try {
+    const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const meta = JSON.parse(localStorage.getItem(STORAGE_META_KEY) || 'null');
+    return {records, meta};
+  } catch(e) {
+    return {records:[], meta:null};
+  }
+}
+
+function showToast(message){
+  el.toast.textContent = message;
+  el.toast.classList.add('show');
+  setTimeout(() => el.toast.classList.remove('show'), 1800);
+}
+
+function setVersionText(meta, prefix='주소록 버전'){
+  if (!meta) {
+    el.versionText.textContent = '저장된 주소록이 없습니다.';
+    return;
+  }
+  const when = formatTime(meta.updated || meta.version);
+  const total = meta.total ? ` · ${meta.total}개` : '';
+  el.versionText.textContent = `${prefix}: ${when}${total}`;
+}
+
+function renderEmptyHero(){
+  el.resultHeader.style.display = 'none';
+  el.resultList.innerHTML = '';
+  el.searchState.innerHTML = `
+    <div class="hero">
+      <div class="big">⌕</div>
+      <h2>목적지명을 검색하세요</h2>
+      <p>처리장명, 맨홀명 또는<br>주소를 입력하세요</p>
+    </div>`;
+}
+
+function renderNoResult(){
+  el.resultHeader.style.display = 'none';
+  el.resultList.innerHTML = '';
+  el.searchState.innerHTML = `
+    <div class="hero" style="margin-top:30px">
+      <div class="big">⌕</div>
+      <h2>검색 결과가 없습니다</h2>
+      <p>다른 검색어로 다시 시도해 주세요</p>
+    </div>`;
+}
+
+function renderResults(){
+  const q = normalizeText(state.query);
+  state.filtered = state.records.filter(r => {
+    if (state.filter !== 'all' && r.type !== state.filter) return false;
+    if (!q) return true;
+    return r.searchable.includes(q);
+  });
+
+  if (!state.query.trim()) {
+    renderEmptyHero();
+    return;
+  }
+
+  el.searchState.innerHTML = '';
+  if (!state.filtered.length) {
+    renderNoResult();
+    return;
+  }
+
+  el.resultHeader.style.display = 'block';
+  el.resultHeader.textContent = `검색 결과 ${state.filtered.length}개`;
+  el.resultList.innerHTML = state.filtered.map(item => `
+    <button class="item" type="button" data-id="${item.id}">
+      <div class="item-main">
+        <div class="item-title">${escapeHtml(item.name)}</div>
+        <div class="item-address">${escapeHtml(item.address)}</div>
+        <div class="tag ${item.type}">${item.type === 'plant' ? '처리장' : '맨홀·펌프장'}</div>
+      </div>
+      <div class="go">➜</div>
+    </button>
+  `).join('');
+
+  [...el.resultList.querySelectorAll('.item')].forEach(btn => {
+    btn.addEventListener('click', () => {
+      const found = state.records.find(r => String(r.id) === btn.dataset.id);
+      if (found) openSheet(found);
+    });
+  });
+}
+
+function escapeHtml(str){
+  return String(str||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function openSheet(item){
+  state.selected = item;
+  el.sheetTitle.textContent = item.name;
+  el.sheetAddress.textContent = item.fullAddress;
+  el.sheetBackdrop.classList.add('show');
+}
+
+function closeSheet(){
+  el.sheetBackdrop.classList.remove('show');
+  state.selected = null;
+}
+
+async function copySelectedAddress(){
+  if (!state.selected) return;
+  try {
+    await navigator.clipboard.writeText(state.selected.fullAddress);
+    showToast('주소를 복사했습니다');
+  } catch (e) {
+    showToast('주소 복사에 실패했습니다');
+  }
+}
+
+async function openTmap(){
+  if (!state.selected) return;
+  await copySelectedAddress();
+  const q = encodeURIComponent(state.selected.fullAddress);
+  // 휴대폰에 티맵이 설치되어 있으면 아래 스킴이 바로 열릴 수 있습니다.
+  // 기기별 차이가 있으면 나중에 이 한 줄만 조정하면 됩니다.
+  window.location.href = `tmap://search?name=${q}`;
+  setTimeout(() => {
+    showToast('티맵이 열리지 않으면 복사된 주소를 티맵에 붙여넣어 주세요');
+  }, 800);
+}
+
+function showSearchView(){
+  state.currentView = 'search';
+  el.searchView.style.display = 'block';
+  el.updateView.style.display = 'none';
+  el.navSearch.classList.add('active');
+  el.navUpdate.classList.remove('active');
+}
+
+function showUpdateLoading(){
+  state.currentView = 'update';
+  el.searchView.style.display = 'none';
+  el.updateView.style.display = 'block';
+  el.navSearch.classList.remove('active');
+  el.navUpdate.classList.add('active');
+  el.updateView.innerHTML = `
+    <div class="status-card">
+      <div class="emoji">↻</div>
+      <h3>주소록 업데이트 확인 중...</h3>
+      <p>잠시만 기다려주세요.</p>
+    </div>`;
+}
+
+function renderUpdateResult(meta, hasUpdate){
+  const localMeta = state.localMeta || {};
+  el.updateView.innerHTML = `
+    <div class="update-card">
+      <div class="emoji" style="font-size:70px; line-height:1">${hasUpdate ? '⬇' : '✓'}</div>
+      <h3>${hasUpdate ? '새로운 주소록이 있습니다.' : '현재 최신 주소록입니다.'}</h3>
+      <p>${hasUpdate ? '업데이트하시겠습니까?' : '현재 저장된 주소록이 가장 최신 버전입니다.'}</p>
+      <div class="rows">
+        <div class="row"><strong>현재 버전</strong><span>${formatTime(localMeta.updated || localMeta.version) || '-'}</span></div>
+        <div class="row"><strong>새 버전</strong><span>${formatTime(meta.updated || meta.version) || '-'}</span></div>
+        <div class="row"><strong>주소 개수</strong><span>${meta.total || 0}개</span></div>
+      </div>
+      <div class="update-actions">
+        <button class="btn-outline" id="cancelUpdateBtn" type="button">취소</button>
+        <button class="btn-primary" id="runUpdateBtn" type="button">${hasUpdate ? '업데이트' : '다시받기'}</button>
+      </div>
+    </div>`;
+  document.getElementById('cancelUpdateBtn').addEventListener('click', showSearchView);
+  document.getElementById('runUpdateBtn').addEventListener('click', bootstrapFromServer);
+}
+
+function renderUpdateError(message){
+  el.updateView.innerHTML = `
+    <div class="status-card">
+      <div class="emoji">⚠</div>
+      <h3>업데이트 확인 실패</h3>
+      <p>${escapeHtml(message)}</p>
+      <div class="update-actions" style="margin-top:18px">
+        <button class="btn-outline" id="backToSearchBtn" type="button">검색으로</button>
+        <button class="btn-primary" id="retryUpdateBtn" type="button">다시 시도</button>
+      </div>
+    </div>`;
+  document.getElementById('backToSearchBtn').addEventListener('click', showSearchView);
+  document.getElementById('retryUpdateBtn').addEventListener('click', checkForUpdates);
+}
+
+function jsonp(params){
+  return new Promise((resolve,reject) => {
+    const callback = '__jsonp_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const script = document.createElement('script');
+    let done = false;
+    const cleanup = () => {
+      done = true;
+      try { delete window[callback]; } catch(e) {}
+      try { script.remove(); } catch(e) {}
+      clearTimeout(timer);
+    };
+    const timer = setTimeout(() => {
+      if (done) return;
+      cleanup();
+      reject(new Error('응답 시간이 초과되었습니다.'));
+    }, REQUEST_TIMEOUT);
+    window[callback] = payload => {
+      if (done) return;
+      cleanup();
+      resolve(payload || {});
+    };
+    script.onerror = () => {
+      if (done) return;
+      cleanup();
+      reject(new Error('서버에 연결하지 못했습니다.'));
+    };
+    const query = new URLSearchParams({ ...params, callback, t: Date.now().toString() });
+    script.src = PROXY_URL + '?' + query.toString();
+    document.head.appendChild(script);
+  });
+}
+
+async function request(params){
+  let lastError;
+  for (let i=0; i<3; i++) {
+    try {
+      const res = await jsonp(params);
+      if (!res.ok) throw new Error(res.error || '요청에 실패했습니다.');
+      return res;
+    } catch (e) {
+      lastError = e;
+      if (i < 2) await new Promise(r => setTimeout(r, RETRY_DELAYS[Math.min(i, RETRY_DELAYS.length - 1)]));
+    }
+  }
+  throw lastError;
+}
+
+function hydrateRecords(records){
+  return (records || []).map((r, idx) => {
+    const category = r.category || '';
+    const name = (r.name || '').trim();
+    const address = (r.address || '').trim();
+    const type = r.type || groupType(category, name);
+    return {
+      id: r.id || idx + 1,
+      category,
+      name,
+      address,
+      fullAddress: buildFullAddress(address),
+      type,
+      searchable: normalizeText(`${category} ${name} ${address} ${r.aliases || ''}`),
+    };
+  }).filter(r => r.name && r.address);
+}
+
+async function bootstrapFromServer(){
+  if (!PROXY_URL || PROXY_URL.includes('여기에_배포한_웹앱_URL')) {
+    renderUpdateError('index.html의 PROXY_URL에 배포한 Apps Script 웹앱 주소를 먼저 넣어주세요.');
+    return;
+  }
+  showUpdateLoading();
+  try {
+    const res = await request({ action:'bootstrap' });
+    state.records = hydrateRecords(res.records);
+    state.localMeta = { version: res.version, updated: res.updated, total: res.total };
+    saveLocal(state.records, state.localMeta);
+    setVersionText(state.localMeta);
+    showToast('주소록을 업데이트했습니다');
+    showSearchView();
+    renderResults();
+  } catch (e) {
+    renderUpdateError(e.message || '주소록을 받아오지 못했습니다.');
+  }
+}
+
+async function checkForUpdates(){
+  if (!PROXY_URL || PROXY_URL.includes('여기에_배포한_웹앱_URL')) {
+    renderUpdateError('index.html의 PROXY_URL에 배포한 Apps Script 웹앱 주소를 먼저 넣어주세요.');
+    return;
+  }
+  showUpdateLoading();
+  try {
+    const res = await request({ action:'meta' });
+    state.remoteMeta = { version: res.version, updated: res.updated, total: res.total };
+    const localVersion = state.localMeta?.version || '';
+    const remoteVersion = state.remoteMeta.version || '';
+    const hasUpdate = !localVersion || String(localVersion) !== String(remoteVersion);
+    renderUpdateResult(state.remoteMeta, hasUpdate);
+  } catch (e) {
+    renderUpdateError(e.message || '업데이트 정보를 가져오지 못했습니다.');
+  }
+}
+
+function loadAtStartup(){
+  const local = loadLocal();
+  state.records = hydrateRecords(local.records || []);
+  state.localMeta = local.meta;
+  setVersionText(state.localMeta, state.localMeta ? '저장된 주소록' : '주소록');
+  renderResults();
+  if (!state.records.length) {
+    showUpdateLoading();
+    bootstrapFromServer();
+  }
+}
+
+el.searchInput.addEventListener('input', e => {
+  state.query = e.target.value;
+  renderResults();
+});
+el.clearBtn.addEventListener('click', () => {
+  el.searchInput.value = '';
+  state.query = '';
+  renderResults();
+  el.searchInput.focus();
+});
+el.chips.forEach(chip => chip.addEventListener('click', () => {
+  el.chips.forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  state.filter = chip.dataset.filter;
+  renderResults();
+}));
+el.navSearch.addEventListener('click', showSearchView);
+el.navUpdate.addEventListener('click', checkForUpdates);
+el.refreshTopBtn.addEventListener('click', bootstrapFromServer);
+el.sheetBackdrop.addEventListener('click', e => { if (e.target === el.sheetBackdrop) closeSheet(); });
+el.copyBtn.addEventListener('click', copySelectedAddress);
+el.tmapBtn.addEventListener('click', openTmap);
+el.closeSheetBtn.addEventListener('click', closeSheet);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && state.currentView === 'search' && !state.records.length) {
+    loadAtStartup();
+  }
+});
+loadAtStartup();
+</script>
+</body>
+</html>
