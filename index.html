@@ -68,6 +68,8 @@
       display:flex; justify-content:center; pointer-events:none;
       z-index:20;
     }
+    .bottom-nav.search-active{display:none}
+    .app.search-active{padding-bottom:18px}
     .bottom-nav-inner{
       pointer-events:auto;
       width:min(520px,100%);
@@ -219,6 +221,8 @@ const el = {
   chips: [...document.querySelectorAll('.chip')],
   navSearch: document.getElementById('navSearch'),
   navUpdate: document.getElementById('navUpdate'),
+  bottomNav: document.querySelector('.bottom-nav'),
+  app: document.querySelector('.app'),
   searchView: document.getElementById('searchView'),
   updateView: document.getElementById('updateView'),
   sheetBackdrop: document.getElementById('sheetBackdrop'),
@@ -229,6 +233,12 @@ const el = {
   closeSheetBtn: document.getElementById('closeSheetBtn'),
   toast: document.getElementById('toast'),
 };
+
+function syncUpdateBarVisibility(){
+  const searching = document.activeElement === el.searchInput || String(state.query || '').trim().length > 0;
+  el.bottomNav.classList.toggle('search-active', searching);
+  el.app.classList.toggle('search-active', searching);
+}
 
 function normalizeText(value){
   return String(value || '')
@@ -316,6 +326,7 @@ function renderNoResult(){
 }
 
 function renderResults(){
+  syncUpdateBarVisibility();
   const q = normalizeText(state.query);
   state.filtered = state.records.filter(r => {
     if (state.filter !== 'all' && r.type !== state.filter) return false;
@@ -566,6 +577,12 @@ function loadAtStartup(){
   }
 }
 
+el.searchInput.addEventListener('focus', () => {
+  syncUpdateBarVisibility();
+});
+el.searchInput.addEventListener('blur', () => {
+  setTimeout(syncUpdateBarVisibility, 0);
+});
 el.searchInput.addEventListener('input', e => {
   state.query = e.target.value;
   renderResults();
