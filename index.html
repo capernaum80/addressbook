@@ -29,7 +29,7 @@
     *{box-sizing:border-box}
     html,body{margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;}
     body{min-height:100vh;}
-    .app{max-width:520px; margin:0 auto; min-height:100vh; background:linear-gradient(180deg,#f9fbff 0,#f4f7fb 42%,#f3f6fa 100%); position:relative; padding-bottom:88px;}
+    .app{max-width:520px; margin:0 auto; min-height:100vh; background:linear-gradient(180deg,#f9fbff 0,#f4f7fb 42%,#f3f6fa 100%); position:relative; padding-bottom:72px;}
     .top{padding:calc(18px + var(--safe-top)) 16px 10px; position:sticky; top:0; z-index:10; backdrop-filter: blur(12px); background:rgba(249,251,255,.88); border-bottom:1px solid rgba(229,231,235,.6)}
     .titlebar{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
     .title{font-size:24px; font-weight:800; letter-spacing:-.04em}
@@ -62,29 +62,53 @@
     .tag.plant{background:#eff6ff; color:#1d4ed8}
     .tag.pump{background:#edfdf3; color:#0f9f57}
     .go{width:46px; height:46px; border-radius:50%; border:none; background:linear-gradient(180deg,#2a8cff,#176dff); color:#fff; font-size:22px; box-shadow:0 8px 16px rgba(23,119,255,.25); cursor:pointer}
-    .bottom-nav{position:fixed; left:0; right:0; bottom:0; display:flex; justify-content:center; pointer-events:none}
-    .bottom-nav-inner{pointer-events:auto; width:min(520px,100%); background:rgba(255,255,255,.95); backdrop-filter: blur(12px); border-top:1px solid rgba(229,231,235,.9); display:flex; justify-content:center; padding:10px 0 calc(10px + var(--safe-bottom));}
-    .nav-btn{flex:0 0 auto; min-width:132px; display:flex; flex-direction:column; align-items:center; gap:4px; border:none; background:transparent; font-size:16px; color:#6b7280; cursor:pointer; padding:2px 20px}
-    .nav-btn .icon{font-size:36px; line-height:1}
-    .nav-btn.active{font-weight:800}
+    /* 하단 주소록 업데이트 영역: 떠 있는 버튼이 아니라 앱의 고정 하단 바처럼 구성 */
+    .bottom-nav{
+      position:fixed; left:0; right:0; bottom:0;
+      display:flex; justify-content:center; pointer-events:none;
+      z-index:20;
+    }
+    .bottom-nav-inner{
+      pointer-events:auto;
+      width:min(520px,100%);
+      padding:0 0 var(--safe-bottom);
+      background:linear-gradient(180deg,#2a8cff 0%,#176dff 100%);
+      border-top:none;
+      box-shadow:0 -3px 12px rgba(23,119,255,.16);
+      display:flex;
+    }
+    .nav-btn{
+      border:none; background:transparent; cursor:pointer;
+      -webkit-tap-highlight-color:transparent;
+    }
     #navSearch{display:none}
     #navUpdate{
-      width:min(240px,60vw);
-      min-width:210px;
-      height:56px;
-      padding:0 22px;
-      border-radius:15px;
-      background:linear-gradient(180deg,#2a8cff,#176dff);
-      color:#fff;
-      font-size:18px;
-      font-weight:800;
+      width:100%;
+      height:64px;
+      padding:0 18px;
+      display:flex;
       flex-direction:row;
+      align-items:center;
       justify-content:center;
       gap:10px;
-      box-shadow:0 3px 9px rgba(23,119,255,.18);
+      color:#fff;
+      font-size:20px;
+      font-weight:800;
+      letter-spacing:-.02em;
+      border-radius:0;
+      box-shadow:none;
     }
-    #navUpdate .icon{font-size:28px; line-height:1}
-    #navUpdate:active{transform:translateY(1px); box-shadow:0 2px 6px rgba(23,119,255,.18)}
+    #navUpdate .icon{
+      font-size:27px;
+      line-height:1;
+      font-weight:700;
+      transform:translateY(-1px);
+    }
+    #navUpdate:active{
+      background:rgba(0,0,0,.08);
+      transform:none;
+      box-shadow:none;
+    }
     .sheet-backdrop{position:fixed; inset:0; background:rgba(17,24,39,.28); display:none; z-index:30}
     .sheet-backdrop.show{display:block}
     .sheet{position:absolute; left:0; right:0; bottom:0; background:#fff; border-radius:24px 24px 0 0; padding:14px 18px calc(20px + var(--safe-bottom)); box-shadow:0 -20px 40px rgba(17,24,39,.18); transform:translateY(100%); transition:transform .25s ease}
