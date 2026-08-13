@@ -3,180 +3,396 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#1677ff">
+  <meta name="theme-color" content="#1777ff">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="하수처리장 TMAP">
   <meta name="format-detection" content="telephone=no">
   <title>하수처리장 TMAP</title>
+
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+
   <style>
     :root{
       --blue:#1777ff;
-      --blue2:#1d96ff;
+      --blue2:#2a8cff;
       --bg:#f5f7fb;
       --text:#111827;
       --muted:#6b7280;
       --line:#e5e7eb;
-      --card:#ffffff;
-      --shadow:0 8px 20px rgba(15, 23, 42, .07);
-      --radius:18px;
-      --safe-top: env(safe-area-inset-top);
-      --safe-bottom: env(safe-area-inset-bottom);
+      --shadow:0 8px 20px rgba(15,23,42,.07);
+      --safe-top:env(safe-area-inset-top);
+      --safe-bottom:env(safe-area-inset-bottom);
     }
+
     *{box-sizing:border-box}
 
-    /* Chrome의 일반 텍스트 선택/길게누르기 검색 방지 */
     html,body{
       margin:0;
+      width:100%;
+      min-height:100%;
       background:var(--bg);
       color:var(--text);
       font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
       overscroll-behavior-y:none;
+      -webkit-text-size-adjust:100%;
+    }
+
+    body{
+      min-height:100vh;
       -webkit-user-select:none;
       user-select:none;
       -webkit-touch-callout:none;
     }
-    body{min-height:100vh;}
 
-    /* 실제로 글자를 입력해야 하는 입력창만 선택/편집 허용 */
-    input, textarea{
+    input{
       -webkit-user-select:text;
       user-select:text;
       -webkit-touch-callout:default;
     }
 
-    .app{max-width:520px; margin:0 auto; min-height:100vh; background:linear-gradient(180deg,#f9fbff 0,#f4f7fb 42%,#f3f6fa 100%); position:relative; padding-bottom:72px; overscroll-behavior-y:none;}
-    .top{padding:calc(18px + var(--safe-top)) 16px 10px; position:sticky; top:0; z-index:10; backdrop-filter: blur(12px); background:rgba(249,251,255,.88); border-bottom:1px solid rgba(229,231,235,.6)}
-    .titlebar{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
-    .title{font-size:24px; font-weight:800; letter-spacing:-.04em}
-    .version{font-size:12px; color:var(--muted)}
-    .search-box{display:flex; align-items:center; gap:10px; background:#fff; border:2px solid rgba(23,119,255,.9); border-radius:18px; min-height:58px; padding:0 14px; box-shadow:var(--shadow)}
-    .search-icon{font-size:22px; color:#365da8}
-    .search-input{border:none; outline:none; background:transparent; width:100%; font-size:20px; color:#111; padding:0; -webkit-appearance:none; appearance:none;}
-    .search-input::-webkit-search-cancel-button{-webkit-appearance:none; appearance:none; display:none}
-    .clear-btn{border:none; background:transparent; font-size:28px; color:#9ca3af; padding:0 2px; cursor:pointer}
-    .chips{display:flex; gap:10px; padding:14px 2px 4px; overflow:auto}
-    .chip{flex:0 0 auto; border:1px solid #d7dce5; background:#fff; color:#111; min-width:82px; height:42px; border-radius:13px; font-size:16px; font-weight:700; cursor:pointer; box-shadow:0 3px 10px rgba(15,23,42,.04)}
-    .chip.active{background:linear-gradient(180deg,#2a8cff,#176dff); color:#fff; border-color:#176dff}
-    .content{padding:16px}
-    .hero{margin-top:46px; text-align:center; color:var(--muted)}
-    .hero .big{font-size:120px; opacity:.16; line-height:1}
-    .hero h2{margin:12px 0 8px; color:#111827; font-size:34px; letter-spacing:-.04em}
-    .hero p{margin:0; font-size:19px; line-height:1.55}
-    .status-card,.update-card{background:#fff; border-radius:24px; box-shadow:var(--shadow); padding:28px 22px; text-align:center}
-    .status-card .emoji{font-size:72px; line-height:1; margin-bottom:10px}
-    .status-card h3,.update-card h3{margin:8px 0 4px; font-size:31px; letter-spacing:-.04em}
-    .status-card p,.update-card p{margin:0; color:var(--muted); font-size:19px; line-height:1.55}
-    .hint{margin-top:14px; font-size:14px; color:var(--muted)}
-    .count{padding:4px 2px 10px; color:#4b5563; font-size:15px; font-weight:700}
-    .list{display:flex; flex-direction:column; gap:12px}
-    .item{background:#fff; border-radius:18px; box-shadow:var(--shadow); padding:16px 14px; display:flex; align-items:center; gap:12px; cursor:pointer; border:1px solid rgba(255,255,255,.9)}
-    .item-main{min-width:0; flex:1}
-    .item-title{font-size:24px; font-weight:800; letter-spacing:-.03em; margin-bottom:4px; word-break:keep-all}
-    .item-address{font-size:20px; color:#374151; word-break:break-word}
-    .tag{display:inline-flex; align-items:center; height:26px; padding:0 10px; border-radius:999px; font-size:13px; font-weight:800; margin-top:8px}
-    .tag.plant{background:#eff6ff; color:#1d4ed8}
-    .tag.pump{background:#edfdf3; color:#0f9f57}
-    .go{width:46px; height:46px; border-radius:50%; border:none; background:linear-gradient(180deg,#2a8cff,#176dff); color:#fff; font-size:22px; box-shadow:0 8px 16px rgba(23,119,255,.25); cursor:pointer}
+    button,input{font:inherit}
 
-    /* 하단 주소록 업데이트 영역: 떠 있는 버튼이 아니라 앱의 고정 하단 바처럼 구성 */
-    .bottom-nav{
-      position:fixed; left:0; right:0; bottom:0;
-      display:flex; justify-content:center; pointer-events:none;
-      z-index:20;
+    .app{
+      max-width:520px;
+      min-height:100vh;
+      margin:0 auto;
+      position:relative;
+      padding-bottom:calc(64px + var(--safe-bottom));
+      background:linear-gradient(180deg,#f9fbff 0,#f4f7fb 42%,#f3f6fa 100%);
+      overscroll-behavior-y:none;
     }
-    .bottom-nav.search-active{display:none}
-    .app.search-active{padding-bottom:18px}
-    .bottom-nav-inner{
-      pointer-events:auto;
-      width:min(520px,100%);
-      padding:0 0 var(--safe-bottom);
-      background:linear-gradient(180deg,#2a8cff 0%,#176dff 100%);
-      border-top:none;
-      box-shadow:0 -3px 12px rgba(23,119,255,.16);
+
+    .app.searching{padding-bottom:18px}
+
+    .top{
+      position:sticky;
+      top:0;
+      z-index:10;
+      padding:calc(18px + var(--safe-top)) 16px 10px;
+      background:rgba(249,251,255,.92);
+      backdrop-filter:blur(12px);
+      border-bottom:1px solid rgba(229,231,235,.7);
+    }
+
+    .titlebar{margin-bottom:14px}
+    .title{font-size:24px;font-weight:800;letter-spacing:-.04em}
+    .version{margin-top:3px;font-size:12px;color:var(--muted)}
+
+    .search-box{
+      min-height:58px;
       display:flex;
+      align-items:center;
+      gap:10px;
+      padding:0 14px;
+      background:#fff;
+      border:2px solid rgba(23,119,255,.9);
+      border-radius:18px;
+      box-shadow:var(--shadow);
     }
-    .nav-btn{
-      border:none; background:transparent; cursor:pointer;
+
+    .search-icon{font-size:22px;color:#365da8}
+    .search-input{
+      width:100%;
+      border:0;
+      outline:0;
+      background:transparent;
+      color:#111;
+      font-size:20px;
+      padding:0;
+      -webkit-appearance:none;
+      appearance:none;
+    }
+    .search-input::-webkit-search-cancel-button{display:none;-webkit-appearance:none}
+    .clear-btn{
+      border:0;
+      background:transparent;
+      color:#9ca3af;
+      font-size:28px;
+      padding:0 2px;
+      cursor:pointer;
       -webkit-tap-highlight-color:transparent;
     }
-    #navSearch{display:none}
-    #navUpdate{
+
+    .chips{
+      display:flex;
+      gap:10px;
+      padding:14px 2px 4px;
+      overflow-x:auto;
+      scrollbar-width:none;
+    }
+    .chips::-webkit-scrollbar{display:none}
+    .chip{
+      flex:0 0 auto;
+      min-width:82px;
+      height:42px;
+      border:1px solid #d7dce5;
+      border-radius:13px;
+      background:#fff;
+      color:#111;
+      font-size:16px;
+      font-weight:700;
+      cursor:pointer;
+      box-shadow:0 3px 10px rgba(15,23,42,.04);
+      -webkit-tap-highlight-color:transparent;
+    }
+    .chip.active{
+      color:#fff;
+      border-color:#176dff;
+      background:linear-gradient(180deg,#2a8cff,#176dff);
+    }
+
+    .content{padding:16px}
+
+    .hero{
+      margin-top:46px;
+      text-align:center;
+      color:var(--muted);
+    }
+    .hero .big{font-size:120px;opacity:.16;line-height:1}
+    .hero h2{
+      margin:12px 0 8px;
+      color:#111827;
+      font-size:34px;
+      letter-spacing:-.04em;
+    }
+    .hero p{margin:0;font-size:19px;line-height:1.55}
+
+    .count{
+      padding:4px 2px 10px;
+      color:#4b5563;
+      font-size:15px;
+      font-weight:700;
+    }
+
+    .list{display:flex;flex-direction:column;gap:12px}
+    .item{
+      width:100%;
+      padding:16px 14px;
+      display:flex;
+      align-items:center;
+      gap:12px;
+      border:1px solid rgba(255,255,255,.9);
+      border-radius:18px;
+      background:#fff;
+      box-shadow:var(--shadow);
+      cursor:pointer;
+      text-align:left;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .item-main{min-width:0;flex:1}
+    .item-title{
+      margin-bottom:4px;
+      font-size:24px;
+      font-weight:800;
+      letter-spacing:-.03em;
+      word-break:keep-all;
+    }
+    .item-address{font-size:20px;color:#374151;word-break:break-word}
+    .tag{
+      display:inline-flex;
+      align-items:center;
+      height:26px;
+      margin-top:8px;
+      padding:0 10px;
+      border-radius:999px;
+      font-size:13px;
+      font-weight:800;
+    }
+    .tag.plant{background:#eff6ff;color:#1d4ed8}
+    .tag.pump{background:#edfdf3;color:#0f9f57}
+
+    .go{
+      width:46px;
+      height:46px;
+      flex:0 0 46px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:50%;
+      background:linear-gradient(180deg,#2a8cff,#176dff);
+      color:#fff;
+      font-size:22px;
+      box-shadow:0 8px 16px rgba(23,119,255,.25);
+    }
+
+    .bottom-nav{
+      position:fixed;
+      left:0;right:0;bottom:0;
+      z-index:20;
+      display:flex;
+      justify-content:center;
+      pointer-events:none;
+    }
+    .bottom-nav.hidden{display:none}
+
+    .bottom-inner{
+      width:min(520px,100%);
+      padding-bottom:var(--safe-bottom);
+      background:linear-gradient(180deg,#2a8cff 0%,#176dff 100%);
+      box-shadow:0 -3px 12px rgba(23,119,255,.16);
+      pointer-events:auto;
+    }
+    .update-main-btn{
       width:100%;
       height:64px;
-      padding:0 18px;
+      border:0;
+      background:transparent;
+      color:#fff;
       display:flex;
-      flex-direction:row;
       align-items:center;
       justify-content:center;
       gap:10px;
-      color:#fff;
       font-size:20px;
       font-weight:800;
-      letter-spacing:-.02em;
-      border-radius:0;
-      box-shadow:none;
+      cursor:pointer;
+      -webkit-tap-highlight-color:transparent;
     }
-    #navUpdate .icon{
-      font-size:27px;
-      line-height:1;
-      font-weight:700;
-      transform:translateY(-1px);
+    .update-main-btn .icon{font-size:27px;line-height:1}
+    .update-main-btn:active{background:rgba(0,0,0,.08)}
+
+    .status-card,.update-card{
+      padding:28px 22px;
+      border-radius:24px;
+      background:#fff;
+      box-shadow:var(--shadow);
+      text-align:center;
     }
-    #navUpdate:active{
-      background:rgba(0,0,0,.08);
-      transform:none;
-      box-shadow:none;
+    .status-card .emoji,.update-card .emoji{font-size:70px;line-height:1;margin-bottom:10px}
+    .status-card h3,.update-card h3{margin:8px 0 4px;font-size:31px;letter-spacing:-.04em}
+    .status-card p,.update-card p{margin:0;color:var(--muted);font-size:19px;line-height:1.55}
+
+    .rows{
+      margin-top:16px;
+      overflow:hidden;
+      border:1px solid #e5e7eb;
+      border-radius:16px;
+      text-align:left;
     }
-    .sheet-backdrop{position:fixed; inset:0; background:rgba(17,24,39,.28); display:none; z-index:30}
+    .row{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      padding:12px 14px;
+      border-top:1px solid #eef2f7;
+      font-size:16px;
+    }
+    .row:first-child{border-top:0}
+
+    .update-actions{display:flex;gap:10px;margin-top:18px}
+    .update-actions button{
+      flex:1;
+      height:56px;
+      border-radius:16px;
+      font-size:20px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btn-outline{border:2px solid #94a3b8;background:#fff;color:#334155}
+    .btn-primary{border:0;background:linear-gradient(180deg,#2a8cff,#176dff);color:#fff}
+
+    .sheet-backdrop{
+      position:fixed;
+      inset:0;
+      z-index:30;
+      display:none;
+      background:rgba(17,24,39,.28);
+    }
     .sheet-backdrop.show{display:block}
-    .sheet{position:absolute; left:0; right:0; bottom:0; background:#fff; border-radius:24px 24px 0 0; padding:14px 18px calc(20px + var(--safe-bottom)); box-shadow:0 -20px 40px rgba(17,24,39,.18); transform:translateY(100%); transition:transform .25s ease}
-    .sheet-backdrop.show .sheet{transform:translateY(0)}
-    .grab{width:58px; height:6px; border-radius:999px; background:#d1d5db; margin:0 auto 12px}
-    .sheet h3{margin:0 0 6px; text-align:center; font-size:32px; letter-spacing:-.05em}
-    .sheet .address-line{display:flex; gap:8px; align-items:flex-start; justify-content:center; margin:0 0 18px; color:#374151; font-size:20px; line-height:1.5; text-align:center}
-    .sheet-btn{width:100%; height:58px; border-radius:16px; border:2px solid #176dff; font-size:23px; font-weight:800; background:#fff; color:#176dff; margin-top:10px; cursor:pointer}
-    .sheet-btn.primary{background:linear-gradient(180deg,#2a8cff,#176dff); color:#fff; border:none}
-    .sheet-btn.gray{border:none; background:#eef2f7; color:#4b5563}
-    .toast{position:fixed; left:50%; bottom:calc(98px + var(--safe-bottom)); transform:translateX(-50%) translateY(20px); background:rgba(17,24,39,.92); color:#fff; padding:12px 16px; border-radius:999px; font-size:14px; opacity:0; pointer-events:none; transition:.2s ease; z-index:40}
-    .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
-    .update-card .rows{margin-top:16px; border:1px solid #e5e7eb; border-radius:16px; overflow:hidden; text-align:left}
-    .update-card .row{display:flex; justify-content:space-between; gap:12px; padding:12px 14px; font-size:16px; border-top:1px solid #eef2f7}
-    .update-card .row:first-child{border-top:none}
-    .update-actions{display:flex; gap:10px; margin-top:18px}
-    .update-actions button{flex:1; height:56px; border-radius:16px; font-size:20px; font-weight:800; cursor:pointer}
-    .btn-outline{border:2px solid #94a3b8; color:#334155; background:#fff}
-    .btn-primary{border:none; color:#fff; background:linear-gradient(180deg,#2a8cff,#176dff)}
-    .sub-actions{display:flex; justify-content:space-between; align-items:center; margin-top:8px}
-    .mini{border:none; background:transparent; color:#176dff; font-size:13px; font-weight:700; cursor:pointer}
-    @media (max-width:420px){
+    .sheet{
+      position:absolute;
+      left:0;right:0;bottom:0;
+      padding:14px 18px calc(20px + var(--safe-bottom));
+      border-radius:24px 24px 0 0;
+      background:#fff;
+      box-shadow:0 -20px 40px rgba(17,24,39,.18);
+    }
+    .grab{width:58px;height:6px;margin:0 auto 12px;border-radius:999px;background:#d1d5db}
+    .sheet h3{margin:0 0 6px;text-align:center;font-size:32px;letter-spacing:-.05em}
+    .address-line{
+      display:flex;
+      align-items:flex-start;
+      justify-content:center;
+      gap:8px;
+      margin:0 0 18px;
+      color:#374151;
+      font-size:20px;
+      line-height:1.5;
+      text-align:center;
+    }
+    .sheet-btn{
+      width:100%;
+      height:58px;
+      margin-top:10px;
+      border:2px solid #176dff;
+      border-radius:16px;
+      background:#fff;
+      color:#176dff;
+      font-size:23px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .sheet-btn.primary{border:0;background:linear-gradient(180deg,#2a8cff,#176dff);color:#fff}
+    .sheet-btn.gray{border:0;background:#eef2f7;color:#4b5563}
+
+    .toast{
+      position:fixed;
+      left:50%;
+      bottom:calc(88px + var(--safe-bottom));
+      z-index:50;
+      max-width:90vw;
+      padding:12px 16px;
+      border-radius:999px;
+      background:rgba(17,24,39,.92);
+      color:#fff;
+      font-size:14px;
+      opacity:0;
+      pointer-events:none;
+      transform:translateX(-50%) translateY(20px);
+      transition:.2s ease;
+      white-space:nowrap;
+    }
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+    @media(max-width:420px){
       .title{font-size:22px}
       .search-input{font-size:18px}
       .item-title{font-size:21px}
-      .item-address,.sheet .address-line{font-size:17px}
+      .item-address,.address-line{font-size:17px}
       .sheet h3{font-size:28px}
       .hero h2,.status-card h3,.update-card h3{font-size:28px}
       .hero p,.status-card p,.update-card p{font-size:17px}
     }
   </style>
 </head>
+
 <body>
-  <main class="app">
+  <main class="app" id="app">
     <header class="top">
       <div class="titlebar">
-        <div>
-          <div class="title">하수처리장 TMAP</div>
-          <div class="version" id="versionText">로컬 주소록 불러오는 중...</div>
-        </div>
+        <div class="title">하수처리장 TMAP</div>
+        <div class="version" id="versionText">로컬 주소록 불러오는 중...</div>
       </div>
+
       <div class="search-box">
         <span class="search-icon">⌕</span>
-        <input id="searchInput" class="search-input" type="search" inputmode="search" enterkeyhint="search" placeholder="어디로 갈까요?" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" />
+        <input
+          id="searchInput"
+          class="search-input"
+          type="search"
+          inputmode="search"
+          enterkeyhint="search"
+          placeholder="어디로 갈까요?"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="none"
+          spellcheck="false"
+        >
         <button id="clearBtn" class="clear-btn" type="button" aria-label="검색어 지우기">×</button>
       </div>
+
       <div class="chips">
         <button class="chip active" data-filter="all" type="button">전체</button>
         <button class="chip" data-filter="plant" type="button">처리장</button>
@@ -193,10 +409,12 @@
     <section class="content" id="updateView" style="display:none"></section>
   </main>
 
-  <div class="bottom-nav">
-    <div class="bottom-nav-inner">
-      <button class="nav-btn active" id="navSearch" type="button"><div class="icon">⌕</div><div>검색</div></button>
-      <button class="nav-btn" id="navUpdate" type="button"><div class="icon">↻</div><div>주소록 업데이트</div></button>
+  <div class="bottom-nav" id="bottomNav">
+    <div class="bottom-inner">
+      <button id="updateMainBtn" class="update-main-btn" type="button">
+        <span class="icon">↻</span>
+        <span>주소록 업데이트</span>
+      </button>
     </div>
   </div>
 
@@ -205,133 +423,186 @@
       <div class="grab"></div>
       <h3 id="sheetTitle">장소명</h3>
       <div class="address-line"><span>📍</span><span id="sheetAddress"></span></div>
-      <button class="sheet-btn" id="copyBtn" type="button">주소 복사</button>
-      <button class="sheet-btn primary" id="tmapBtn" type="button">TMAP으로 길안내</button>
-      <button class="sheet-btn gray" id="closeSheetBtn" type="button">취소</button>
+      <button id="copyBtn" class="sheet-btn" type="button">주소 복사</button>
+      <button id="tmapBtn" class="sheet-btn primary" type="button">TMAP으로 길안내</button>
+      <button id="closeSheetBtn" class="sheet-btn gray" type="button">취소</button>
     </div>
   </div>
 
   <div id="toast" class="toast"></div>
 
 <script>
-// BUILD: 2026-08-13-back-v3-keyboard-preserve
+'use strict';
+
+/*
+  하수처리장 TMAP - 새로 설계한 단순 상태 구조
+
+  브라우저 history는 딱 3단계만 사용합니다.
+    base   : 검색어가 없는 메인 화면
+    search : 검색어가 있는 검색 결과 화면
+    sheet  : 목적지 상세/주소복사/TMAP 화면
+    update : 주소록 업데이트 화면
+
+  Android 키보드의 V 버튼은 브라우저/OS 고유 동작에 맡깁니다.
+  touchmove/popstate를 이용해 키보드 닫기를 가로채지 않습니다.
+*/
+
 const PROXY_URL = 'https://script.google.com/macros/s/AKfycbxehvKiQkegGrCZbraOnHYdy15yWmNHHa4ulnGB4MFzBOHbmn8AeeOUU-jOjXBoCSc/exec';
 const STORAGE_KEY = 'facility_addressbook_cache_v1';
 const STORAGE_META_KEY = 'facility_addressbook_meta_v1';
 const REQUEST_TIMEOUT = 20000;
-const RETRY_DELAYS = [800, 1500];
+const RETRY_DELAYS = [800,1500];
 
 const state = {
-  records: [],
-  filtered: [],
-  filter: 'all',
-  query: '',
-  selected: null,
-  currentView: 'search',
-  localMeta: null,
-  remoteMeta: null,
-  exitArmUntil: 0,
-  searchHistoryActive: false,
-  keyboardWasOpen: false,
-  keyboardHideGraceUntil: 0,
+  records:[],
+  filter:'all',
+  query:'',
+  selected:null,
+  localMeta:null,
+  remoteMeta:null,
+  view:'base',
+  pendingRefocus:false
 };
 
 const el = {
-  searchInput: document.getElementById('searchInput'),
-  clearBtn: document.getElementById('clearBtn'),
-  versionText: document.getElementById('versionText'),
-  searchState: document.getElementById('searchState'),
-  resultHeader: document.getElementById('resultHeader'),
-  resultList: document.getElementById('resultList'),
-  chips: [...document.querySelectorAll('.chip')],
-  navSearch: document.getElementById('navSearch'),
-  navUpdate: document.getElementById('navUpdate'),
-  bottomNav: document.querySelector('.bottom-nav'),
-  app: document.querySelector('.app'),
-  searchView: document.getElementById('searchView'),
-  updateView: document.getElementById('updateView'),
-  sheetBackdrop: document.getElementById('sheetBackdrop'),
-  sheetTitle: document.getElementById('sheetTitle'),
-  sheetAddress: document.getElementById('sheetAddress'),
-  copyBtn: document.getElementById('copyBtn'),
-  tmapBtn: document.getElementById('tmapBtn'),
-  closeSheetBtn: document.getElementById('closeSheetBtn'),
-  toast: document.getElementById('toast'),
+  app:document.getElementById('app'),
+  versionText:document.getElementById('versionText'),
+  searchInput:document.getElementById('searchInput'),
+  clearBtn:document.getElementById('clearBtn'),
+  chips:[...document.querySelectorAll('.chip')],
+  searchState:document.getElementById('searchState'),
+  resultHeader:document.getElementById('resultHeader'),
+  resultList:document.getElementById('resultList'),
+  searchView:document.getElementById('searchView'),
+  updateView:document.getElementById('updateView'),
+  bottomNav:document.getElementById('bottomNav'),
+  updateMainBtn:document.getElementById('updateMainBtn'),
+  sheetBackdrop:document.getElementById('sheetBackdrop'),
+  sheetTitle:document.getElementById('sheetTitle'),
+  sheetAddress:document.getElementById('sheetAddress'),
+  copyBtn:document.getElementById('copyBtn'),
+  tmapBtn:document.getElementById('tmapBtn'),
+  closeSheetBtn:document.getElementById('closeSheetBtn'),
+  toast:document.getElementById('toast')
 };
 
-function syncUpdateBarVisibility(){
-  const searching = document.activeElement === el.searchInput || String(state.query || '').trim().length > 0;
-  el.bottomNav.classList.toggle('search-active', searching);
-  el.app.classList.toggle('search-active', searching);
+function historyView(){
+  return history.state && history.state.view ? history.state.view : 'base';
+}
+
+function setBaseHistory(){
+  try{ history.replaceState({view:'base'},'',location.href); }catch(_){}
+  state.view='base';
+}
+
+function pushView(view){
+  try{ history.pushState({view},'',location.href); }catch(_){}
+  state.view=view;
 }
 
 function normalizeText(value){
-  return String(value || '')
+  return String(value||'')
     .toLowerCase()
     .replace(/충청남도/g,'')
     .replace(/부여군/g,'')
     .replace(/[\s\-_\/.,()]/g,'');
 }
 
-function groupType(category, name){
-  const s = `${category||''} ${name||''}`;
-  return /처리장/.test(s) ? 'plant' : 'pump';
+function groupType(category,name){
+  return /처리장/.test(`${category||''} ${name||''}`) ? 'plant' : 'pump';
 }
 
 function buildFullAddress(address){
-  const text = String(address || '').trim();
-  if (!text) return '';
-  if (/^충청남도\s*부여군/.test(text)) return text;
+  const text=String(address||'').trim();
+  if(!text) return '';
+  if(/^충청남도\s*부여군/.test(text)) return text;
   return '충청남도 부여군 ' + text;
 }
 
+function escapeHtml(str){
+  return String(str||'').replace(/[&<>"']/g,m=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[m]));
+}
+
 function formatTime(value){
-  if (!value) return '';
-  const d = new Date(value);
-  if (isNaN(d)) return String(value);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth()+1).padStart(2,'0');
-  const dd = String(d.getDate()).padStart(2,'0');
-  const hh = String(d.getHours()).padStart(2,'0');
-  const mi = String(d.getMinutes()).padStart(2,'0');
+  if(!value) return '';
+  const d=new Date(value);
+  if(isNaN(d)) return String(value);
+  const yyyy=d.getFullYear();
+  const mm=String(d.getMonth()+1).padStart(2,'0');
+  const dd=String(d.getDate()).padStart(2,'0');
+  const hh=String(d.getHours()).padStart(2,'0');
+  const mi=String(d.getMinutes()).padStart(2,'0');
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
 }
 
-function saveLocal(records, meta){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-  localStorage.setItem(STORAGE_META_KEY, JSON.stringify(meta));
+function showToast(message){
+  el.toast.textContent=message;
+  el.toast.classList.add('show');
+  clearTimeout(showToast.timer);
+  showToast.timer=setTimeout(()=>el.toast.classList.remove('show'),1800);
+}
+
+function setVersionText(meta,prefix='저장된 주소록'){
+  if(!meta){
+    el.versionText.textContent='저장된 주소록이 없습니다.';
+    return;
+  }
+  const when=formatTime(meta.updated||meta.version);
+  const total=meta.total ? ` · ${meta.total}개` : '';
+  el.versionText.textContent=`${prefix}: ${when}${total}`;
+}
+
+function saveLocal(records,meta){
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(records));
+  localStorage.setItem(STORAGE_META_KEY,JSON.stringify(meta));
 }
 
 function loadLocal(){
-  try {
-    const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    const meta = JSON.parse(localStorage.getItem(STORAGE_META_KEY) || 'null');
-    return {records, meta};
-  } catch(e) {
-    return {records:[], meta:null};
+  try{
+    return {
+      records:JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'),
+      meta:JSON.parse(localStorage.getItem(STORAGE_META_KEY)||'null')
+    };
+  }catch(_){
+    return {records:[],meta:null};
   }
 }
 
-function showToast(message){
-  el.toast.textContent = message;
-  el.toast.classList.add('show');
-  setTimeout(() => el.toast.classList.remove('show'), 1800);
+function hydrateRecords(records){
+  return (records||[]).map((r,idx)=>{
+    const category=r.category||'';
+    const name=String(r.name||'').trim();
+    const address=String(r.address||'').trim();
+    const type=r.type||groupType(category,name);
+    return {
+      id:r.id||idx+1,
+      category,
+      name,
+      address,
+      fullAddress:buildFullAddress(address),
+      type,
+      searchable:normalizeText(`${category} ${name} ${address} ${r.aliases||''}`)
+    };
+  }).filter(r=>r.name&&r.address);
 }
 
-function setVersionText(meta, prefix='주소록 버전'){
-  if (!meta) {
-    el.versionText.textContent = '저장된 주소록이 없습니다.';
-    return;
-  }
-  const when = formatTime(meta.updated || meta.version);
-  const total = meta.total ? ` · ${meta.total}개` : '';
-  el.versionText.textContent = `${prefix}: ${when}${total}`;
+function syncBottomBar(){
+  const searching =
+    document.activeElement===el.searchInput ||
+    String(state.query||'').trim().length>0 ||
+    state.view==='sheet' ||
+    state.view==='update';
+
+  el.bottomNav.classList.toggle('hidden',searching);
+  el.app.classList.toggle('searching',searching);
 }
 
 function renderEmptyHero(){
-  el.resultHeader.style.display = 'none';
-  el.resultList.innerHTML = '';
-  el.searchState.innerHTML = `
+  el.resultHeader.style.display='none';
+  el.resultList.innerHTML='';
+  el.searchState.innerHTML=`
     <div class="hero">
       <div class="big">⌕</div>
       <h2>목적지명을 검색하세요</h2>
@@ -340,9 +611,9 @@ function renderEmptyHero(){
 }
 
 function renderNoResult(){
-  el.resultHeader.style.display = 'none';
-  el.resultList.innerHTML = '';
-  el.searchState.innerHTML = `
+  el.resultHeader.style.display='none';
+  el.resultList.innerHTML='';
+  el.searchState.innerHTML=`
     <div class="hero" style="margin-top:30px">
       <div class="big">⌕</div>
       <h2>검색 결과가 없습니다</h2>
@@ -351,447 +622,417 @@ function renderNoResult(){
 }
 
 function renderResults(){
-  syncUpdateBarVisibility();
-  const q = normalizeText(state.query);
-  state.filtered = state.records.filter(r => {
-    if (state.filter !== 'all' && r.type !== state.filter) return false;
-    if (!q) return true;
-    return r.searchable.includes(q);
-  });
+  syncBottomBar();
 
-  if (!state.query.trim()) {
+  const raw=String(state.query||'');
+  if(!raw.trim()){
     renderEmptyHero();
     return;
   }
 
-  el.searchState.innerHTML = '';
-  if (!state.filtered.length) {
+  const q=normalizeText(raw);
+  const filtered=state.records.filter(r=>{
+    if(state.filter!=='all'&&r.type!==state.filter) return false;
+    return r.searchable.includes(q);
+  });
+
+  el.searchState.innerHTML='';
+
+  if(!filtered.length){
     renderNoResult();
     return;
   }
 
-  el.resultHeader.style.display = 'block';
-  el.resultHeader.textContent = `검색 결과 ${state.filtered.length}개`;
-  el.resultList.innerHTML = state.filtered.map(item => `
+  el.resultHeader.style.display='block';
+  el.resultHeader.textContent=`검색 결과 ${filtered.length}개`;
+
+  el.resultList.innerHTML=filtered.map(item=>`
     <button class="item" type="button" data-id="${item.id}">
       <div class="item-main">
         <div class="item-title">${escapeHtml(item.name)}</div>
         <div class="item-address">${escapeHtml(item.address)}</div>
-        <div class="tag ${item.type}">${item.type === 'plant' ? '처리장' : '맨홀·펌프장'}</div>
+        <div class="tag ${item.type}">${item.type==='plant'?'처리장':'맨홀·펌프장'}</div>
       </div>
       <div class="go">➜</div>
     </button>
   `).join('');
 
-  [...el.resultList.querySelectorAll('.item')].forEach(btn => {
-    btn.addEventListener('click', () => {
-      const found = state.records.find(r => String(r.id) === btn.dataset.id);
-      if (found) openSheet(found);
+  el.resultList.querySelectorAll('.item').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const found=state.records.find(r=>String(r.id)===btn.dataset.id);
+      if(found) openSheet(found);
     });
   });
 }
 
-function escapeHtml(str){
-  return String(str||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+function showSearchSurface(){
+  el.searchView.style.display='block';
+  el.updateView.style.display='none';
 }
 
 function openSheet(item){
-  state.selected = item;
-  el.sheetTitle.textContent = item.name;
-  el.sheetAddress.textContent = item.fullAddress;
+  state.selected=item;
+  el.sheetTitle.textContent=item.name;
+  el.sheetAddress.textContent=item.fullAddress;
   el.sheetBackdrop.classList.add('show');
 
-  // 상세창 자체도 하나의 "이전 화면"으로 history에 기록합니다.
-  // 그래서 Android < 버튼을 누르면 먼저 상세창만 닫힙니다.
-  try {
-    history.pushState({ appView:'sheet' }, '', location.href);
-  } catch(e) {}
+  if(historyView()!=='sheet') pushView('sheet');
+  state.view='sheet';
+  syncBottomBar();
 }
 
-function closeSheet(){
+function closeSheetVisual(){
   el.sheetBackdrop.classList.remove('show');
-  state.selected = null;
+  state.selected=null;
 }
 
 function closeSheetByUser(){
-  // 취소 버튼/바깥 영역을 눌러 닫을 때도 history와 화면 상태를 같이 맞춥니다.
-  if (el.sheetBackdrop.classList.contains('show') && history.state?.appView === 'sheet') {
+  if(historyView()==='sheet'){
     history.back();
-  } else {
-    closeSheet();
+  }else{
+    closeSheetVisual();
+    state.view=String(state.query||'').trim()?'search':'base';
+    syncBottomBar();
   }
 }
 
 async function copySelectedAddress(){
-  if (!state.selected) return;
-  try {
+  if(!state.selected) return;
+  try{
     await navigator.clipboard.writeText(state.selected.fullAddress);
     showToast('주소를 복사했습니다');
-  } catch (e) {
+  }catch(_){
     showToast('주소 복사에 실패했습니다');
   }
 }
 
 async function openTmap(){
-  if (!state.selected) return;
-  await copySelectedAddress();
-  const q = encodeURIComponent(state.selected.fullAddress);
-  // 휴대폰에 티맵이 설치되어 있으면 아래 스킴이 바로 열릴 수 있습니다.
-  // 기기별 차이가 있으면 나중에 이 한 줄만 조정하면 됩니다.
-  window.location.href = `tmap://search?name=${q}`;
-  setTimeout(() => {
-    showToast('티맵이 열리지 않으면 복사된 주소를 티맵에 붙여넣어 주세요');
-  }, 800);
+  if(!state.selected) return;
+
+  const address=state.selected.fullAddress;
+  try{
+    await navigator.clipboard.writeText(address);
+  }catch(_){}
+
+  const q=encodeURIComponent(address);
+  window.location.href=`tmap://search?name=${q}`;
 }
 
-function showSearchView(){
-  state.currentView = 'search';
-  el.searchView.style.display = 'block';
-  el.updateView.style.display = 'none';
-  el.navSearch.classList.add('active');
-  el.navUpdate.classList.remove('active');
+function clearQueryVisual({refocus=false}={}){
+  el.searchInput.value='';
+  state.query='';
+  renderResults();
+  if(refocus){
+    setTimeout(()=>el.searchInput.focus(),0);
+  }else{
+    el.searchInput.blur();
+  }
+}
+
+function resetFilter(){
+  state.filter='all';
+  el.chips.forEach(c=>c.classList.toggle('active',c.dataset.filter==='all'));
+}
+
+function handleBackTarget(target){
+  /*
+    popstate는 "뒤로간 뒤 도착한 상태"를 알려줍니다.
+    따라서 sheet -> search, search -> base 순서가 자연스럽게 보장됩니다.
+  */
+  if(target==='search'){
+    closeSheetVisual();
+    showSearchSurface();
+    state.view='search';
+    syncBottomBar();
+    return;
+  }
+
+  if(target==='base'){
+    closeSheetVisual();
+    showSearchSurface();
+    state.view='base';
+    clearQueryVisual({refocus:false});
+    resetFilter();
+    syncBottomBar();
+
+    if(state.pendingRefocus){
+      state.pendingRefocus=false;
+      setTimeout(()=>el.searchInput.focus(),0);
+    }
+    return;
+  }
+
+  if(target==='update'){
+    state.view='update';
+    syncBottomBar();
+  }
+}
+
+function beginSearchHistoryIfNeeded(){
+  if(historyView()==='base' && String(state.query||'').trim()){
+    pushView('search');
+  }
+}
+
+function requestClearFromButton(){
+  if(String(state.query||'').trim() && historyView()==='search'){
+    state.pendingRefocus=true;
+    history.back();
+  }else{
+    clearQueryVisual({refocus:true});
+  }
 }
 
 function showUpdateLoading(){
-  state.currentView = 'update';
-  el.searchView.style.display = 'none';
-  el.updateView.style.display = 'block';
-  el.navSearch.classList.remove('active');
-  el.navUpdate.classList.add('active');
-  el.updateView.innerHTML = `
+  state.view='update';
+  closeSheetVisual();
+  el.searchView.style.display='none';
+  el.updateView.style.display='block';
+  el.updateView.innerHTML=`
     <div class="status-card">
       <div class="emoji">↻</div>
       <h3>주소록 업데이트 확인 중...</h3>
       <p>잠시만 기다려주세요.</p>
     </div>`;
+  syncBottomBar();
 }
 
-function renderUpdateResult(meta, hasUpdate){
-  const localMeta = state.localMeta || {};
-  el.updateView.innerHTML = `
+function renderUpdateResult(meta,hasUpdate){
+  const local=state.localMeta||{};
+  el.updateView.innerHTML=`
     <div class="update-card">
-      <div class="emoji" style="font-size:70px; line-height:1">${hasUpdate ? '⬇' : '✓'}</div>
-      <h3>${hasUpdate ? '새로운 주소록이 있습니다.' : '현재 최신 주소록입니다.'}</h3>
-      <p>${hasUpdate ? '업데이트하시겠습니까?' : '현재 저장된 주소록이 가장 최신 버전입니다.'}</p>
+      <div class="emoji">${hasUpdate?'⬇':'✓'}</div>
+      <h3>${hasUpdate?'새로운 주소록이 있습니다.':'현재 최신 주소록입니다.'}</h3>
+      <p>${hasUpdate?'업데이트하시겠습니까?':'현재 저장된 주소록이 가장 최신 버전입니다.'}</p>
       <div class="rows">
-        <div class="row"><strong>현재 버전</strong><span>${formatTime(localMeta.updated || localMeta.version) || '-'}</span></div>
-        <div class="row"><strong>새 버전</strong><span>${formatTime(meta.updated || meta.version) || '-'}</span></div>
-        <div class="row"><strong>주소 개수</strong><span>${meta.total || 0}개</span></div>
+        <div class="row"><strong>현재 버전</strong><span>${formatTime(local.updated||local.version)||'-'}</span></div>
+        <div class="row"><strong>새 버전</strong><span>${formatTime(meta.updated||meta.version)||'-'}</span></div>
+        <div class="row"><strong>주소 개수</strong><span>${meta.total||0}개</span></div>
       </div>
       <div class="update-actions">
         <button class="btn-outline" id="cancelUpdateBtn" type="button">취소</button>
-        <button class="btn-primary" id="runUpdateBtn" type="button">${hasUpdate ? '업데이트' : '다시받기'}</button>
+        <button class="btn-primary" id="runUpdateBtn" type="button">${hasUpdate?'업데이트':'다시받기'}</button>
       </div>
     </div>`;
-  document.getElementById('cancelUpdateBtn').addEventListener('click', showSearchView);
-  document.getElementById('runUpdateBtn').addEventListener('click', bootstrapFromServer);
+
+  document.getElementById('cancelUpdateBtn').addEventListener('click',closeUpdateByUser);
+  document.getElementById('runUpdateBtn').addEventListener('click',bootstrapFromServer);
 }
 
 function renderUpdateError(message){
-  el.updateView.innerHTML = `
+  el.updateView.innerHTML=`
     <div class="status-card">
       <div class="emoji">⚠</div>
       <h3>업데이트 확인 실패</h3>
       <p>${escapeHtml(message)}</p>
-      <div class="update-actions" style="margin-top:18px">
-        <button class="btn-outline" id="backToSearchBtn" type="button">검색으로</button>
+      <div class="update-actions">
+        <button class="btn-outline" id="backUpdateBtn" type="button">검색으로</button>
         <button class="btn-primary" id="retryUpdateBtn" type="button">다시 시도</button>
       </div>
     </div>`;
-  document.getElementById('backToSearchBtn').addEventListener('click', showSearchView);
-  document.getElementById('retryUpdateBtn').addEventListener('click', checkForUpdates);
+
+  document.getElementById('backUpdateBtn').addEventListener('click',closeUpdateByUser);
+  document.getElementById('retryUpdateBtn').addEventListener('click',checkForUpdates);
+}
+
+function closeUpdateByUser(){
+  if(historyView()==='update'){
+    history.back();
+  }else{
+    showSearchSurface();
+    state.view=String(state.query||'').trim()?'search':'base';
+    syncBottomBar();
+  }
 }
 
 function jsonp(params){
-  return new Promise((resolve,reject) => {
-    const callback = '__jsonp_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-    const script = document.createElement('script');
-    let done = false;
-    const cleanup = () => {
-      done = true;
-      try { delete window[callback]; } catch(e) {}
-      try { script.remove(); } catch(e) {}
+  return new Promise((resolve,reject)=>{
+    const callback='__addr_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+    const script=document.createElement('script');
+    let finished=false;
+
+    const cleanup=()=>{
+      if(finished) return;
+      finished=true;
       clearTimeout(timer);
+      try{delete window[callback]}catch(_){}
+      try{script.remove()}catch(_){}
     };
-    const timer = setTimeout(() => {
-      if (done) return;
+
+    const timer=setTimeout(()=>{
       cleanup();
       reject(new Error('응답 시간이 초과되었습니다.'));
-    }, REQUEST_TIMEOUT);
-    window[callback] = payload => {
-      if (done) return;
+    },REQUEST_TIMEOUT);
+
+    window[callback]=payload=>{
       cleanup();
-      resolve(payload || {});
+      resolve(payload||{});
     };
-    script.onerror = () => {
-      if (done) return;
+
+    script.onerror=()=>{
       cleanup();
       reject(new Error('서버에 연결하지 못했습니다.'));
     };
-    const query = new URLSearchParams({ ...params, callback, t: Date.now().toString() });
-    script.src = PROXY_URL + '?' + query.toString();
+
+    const query=new URLSearchParams({...params,callback,t:Date.now().toString()});
+    script.src=PROXY_URL+'?'+query.toString();
     document.head.appendChild(script);
   });
 }
 
 async function request(params){
   let lastError;
-  for (let i=0; i<3; i++) {
-    try {
-      const res = await jsonp(params);
-      if (!res.ok) throw new Error(res.error || '요청에 실패했습니다.');
+  for(let i=0;i<3;i++){
+    try{
+      const res=await jsonp(params);
+      if(!res.ok) throw new Error(res.error||'요청에 실패했습니다.');
       return res;
-    } catch (e) {
-      lastError = e;
-      if (i < 2) await new Promise(r => setTimeout(r, RETRY_DELAYS[Math.min(i, RETRY_DELAYS.length - 1)]));
+    }catch(err){
+      lastError=err;
+      if(i<2){
+        await new Promise(r=>setTimeout(r,RETRY_DELAYS[Math.min(i,RETRY_DELAYS.length-1)]));
+      }
     }
   }
   throw lastError;
 }
 
-function hydrateRecords(records){
-  return (records || []).map((r, idx) => {
-    const category = r.category || '';
-    const name = (r.name || '').trim();
-    const address = (r.address || '').trim();
-    const type = r.type || groupType(category, name);
-    return {
-      id: r.id || idx + 1,
-      category,
-      name,
-      address,
-      fullAddress: buildFullAddress(address),
-      type,
-      searchable: normalizeText(`${category} ${name} ${address} ${r.aliases || ''}`),
-    };
-  }).filter(r => r.name && r.address);
-}
-
 async function bootstrapFromServer(){
-  if (!PROXY_URL || PROXY_URL.includes('여기에_배포한_웹앱_URL')) {
-    renderUpdateError('index.html의 PROXY_URL에 배포한 Apps Script 웹앱 주소를 먼저 넣어주세요.');
-    return;
-  }
   showUpdateLoading();
-  try {
-    const res = await request({ action:'bootstrap' });
-    state.records = hydrateRecords(res.records);
-    state.localMeta = { version: res.version, updated: res.updated, total: res.total };
-    saveLocal(state.records, state.localMeta);
+  try{
+    const res=await request({action:'bootstrap'});
+    state.records=hydrateRecords(res.records);
+    state.localMeta={version:res.version,updated:res.updated,total:res.total};
+    saveLocal(state.records,state.localMeta);
     setVersionText(state.localMeta);
     showToast('주소록을 업데이트했습니다');
-    showSearchView();
-    renderResults();
-  } catch (e) {
-    renderUpdateError(e.message || '주소록을 받아오지 못했습니다.');
+
+    // 업데이트 화면을 닫을 때는 history를 통해 base로 복귀
+    if(historyView()==='update'){
+      history.back();
+    }else{
+      showSearchSurface();
+      state.view='base';
+      syncBottomBar();
+      renderResults();
+    }
+  }catch(err){
+    renderUpdateError(err.message||'주소록을 받아오지 못했습니다.');
   }
 }
 
 async function checkForUpdates(){
-  if (!PROXY_URL || PROXY_URL.includes('여기에_배포한_웹앱_URL')) {
-    renderUpdateError('index.html의 PROXY_URL에 배포한 Apps Script 웹앱 주소를 먼저 넣어주세요.');
-    return;
-  }
+  if(historyView()!=='update') pushView('update');
   showUpdateLoading();
-  try {
-    const res = await request({ action:'meta' });
-    state.remoteMeta = { version: res.version, updated: res.updated, total: res.total };
-    const localVersion = state.localMeta?.version || '';
-    const remoteVersion = state.remoteMeta.version || '';
-    const hasUpdate = !localVersion || String(localVersion) !== String(remoteVersion);
-    renderUpdateResult(state.remoteMeta, hasUpdate);
-  } catch (e) {
-    renderUpdateError(e.message || '업데이트 정보를 가져오지 못했습니다.');
+
+  try{
+    const res=await request({action:'meta'});
+    state.remoteMeta={version:res.version,updated:res.updated,total:res.total};
+
+    const localVersion=state.localMeta?.version||'';
+    const remoteVersion=state.remoteMeta.version||'';
+    const hasUpdate=!localVersion || String(localVersion)!==String(remoteVersion);
+
+    renderUpdateResult(state.remoteMeta,hasUpdate);
+  }catch(err){
+    renderUpdateError(err.message||'업데이트 정보를 가져오지 못했습니다.');
   }
-}
-
-
-/* Android 뒤로가기 버튼 처리
-   핵심은 '검색창에 커서가 있느냐'를 전혀 보지 않는 것입니다.
-   검색어가 남아 있으면 검색 중인 화면으로 보고, history 단계로 뒤로갑니다.
-
-   동작:
-   1) 키보드 표시 중 V → Android가 키보드만 내림 (검색어 유지)
-   2) 상세창에서 < → 상세창 닫기
-   3) 검색어가 남아 있는 화면에서 < → 검색어만 지우기
-   4) 검색어가 없는 메인 화면에서 < → 앱/페이지 종료 */
-function clearSearchOnly(){
-  state.keyboardHideGraceUntil = 0;
-  el.searchInput.value = '';
-  state.query = '';
-  el.searchInput.blur();
-  state.searchHistoryActive = false;
-  renderResults();
-}
-
-function ensureSearchHistory(){
-  const hasQuery = String(state.query || '').trim().length > 0;
-
-  if (hasQuery && !state.searchHistoryActive) {
-    try {
-      history.pushState({ appView:'search' }, '', location.href);
-      state.searchHistoryActive = true;
-    } catch(e) {}
-  }
-}
-
-function installAndroidBackHandler(){
-  // 현재 페이지를 앱의 메인 화면(base)으로 표시합니다.
-  try {
-    history.replaceState({ appView:'base' }, '', location.href);
-  } catch(e) {}
-
-  window.addEventListener('popstate', e => {
-    const view = e.state?.appView || '';
-    const hasQuery = String(el.searchInput.value || state.query || '').trim().length > 0;
-
-    // 핵심 수정:
-    // Android의 V(키보드 내리기)를 누를 때 어떤 기기에서는
-    // popstate가 blur보다 먼저 발생합니다.
-    // 따라서 'blur 후 900ms'만 보는 방식으로는 검색어가 지워질 수 있습니다.
-    //
-    // 검색창이 아직 focus 상태이거나, 직전까지 키보드가 열려 있었다면
-    // 이번 popstate는 '키보드만 내리기'로 간주하고 검색어를 절대 지우지 않습니다.
-    if (hasQuery && (document.activeElement === el.searchInput || state.keyboardWasOpen)) {
-      state.keyboardHideGraceUntil = Date.now() + 1500;
-      state.searchHistoryActive = false;
-      ensureSearchHistory();
-      return;
-    }
-
-    // blur가 먼저 발생한 기기에서도 일정 시간 동안은 같은 방식으로 보호합니다.
-    if (hasQuery && Date.now() < state.keyboardHideGraceUntil) {
-      state.searchHistoryActive = false;
-      ensureSearchHistory();
-      return;
-    }
-
-    // 상세창이 열려 있으면 커서 위치와 관계없이 상세창만 닫습니다.
-    if (el.sheetBackdrop.classList.contains('show')) {
-      closeSheet();
-      return;
-    }
-
-    // 업데이트 화면도 앱 내부 이전 화면인 검색 화면으로 돌아갑니다.
-    if (state.currentView === 'update') {
-      showSearchView();
-
-      // 검색어가 남아 있었다면 검색 단계 history를 다시 확보합니다.
-      if (String(state.query || '').trim()) {
-        state.searchHistoryActive = false;
-        ensureSearchHistory();
-      }
-      return;
-    }
-
-    // 가장 중요한 부분:
-    // 포커스/커서가 없어도 '실제 검색어'가 남아 있으면 절대 종료하지 않고 검색어만 지웁니다.
-    const actualQuery = String(el.searchInput.value || state.query || '').trim();
-    if (actualQuery) {
-      clearSearchOnly();
-      return;
-    }
-
-    state.searchHistoryActive = false;
-
-    // 여기까지 왔다는 것은 검색어도 없고 닫을 내부 화면도 없는 메인 화면입니다.
-    // 이 경우에는 브라우저/설치형 웹앱의 정상적인 이전 화면(종료) 동작을 그대로 허용합니다.
-  });
 }
 
 function loadAtStartup(){
-  const local = loadLocal();
-  state.records = hydrateRecords(local.records || []);
-  state.localMeta = local.meta;
-  setVersionText(state.localMeta, state.localMeta ? '저장된 주소록' : '주소록');
+  setBaseHistory();
+
+  const local=loadLocal();
+  state.records=hydrateRecords(local.records||[]);
+  state.localMeta=local.meta;
+
+  setVersionText(state.localMeta);
+  showSearchSurface();
   renderResults();
-  if (!state.records.length) {
-    showUpdateLoading();
+  syncBottomBar();
+
+  if(!state.records.length){
+    // 최초 설치 시에만 서버에서 주소록을 자동으로 받습니다.
+    pushView('update');
     bootstrapFromServer();
   }
 }
 
-/* 일반 텍스트 길게 누르기/컨텍스트 메뉴 방지
-   검색 입력창은 정상 입력을 위해 예외 처리 */
-document.addEventListener('contextmenu', e => {
-  if (!e.target.closest('input, textarea')) {
-    e.preventDefault();
-  }
+/* 일반 텍스트 길게 누르기/Chrome 검색 메뉴 방지.
+   검색 입력창은 정상 편집을 위해 예외입니다. */
+document.addEventListener('contextmenu',e=>{
+  if(!e.target.closest('input,textarea')) e.preventDefault();
+},true);
+
+document.addEventListener('selectstart',e=>{
+  if(!e.target.closest('input,textarea')) e.preventDefault();
+},true);
+
+document.addEventListener('dragstart',e=>{
+  if(!e.target.closest('input,textarea')) e.preventDefault();
+},true);
+
+/* 시스템 뒤로가기 */
+window.addEventListener('popstate',e=>{
+  const target=e.state?.view;
+
+  // 앱보다 이전의 브라우저 기록으로 이동하는 경우에는 가로채지 않습니다.
+  if(!target) return;
+
+  handleBackTarget(target);
 });
 
-/* Android Chrome의 Pull-to-refresh는 CSS overscroll-behavior로 차단합니다.
-   touchmove에서 preventDefault()를 사용하지 않아 키보드 표시 중에도
-   검색 결과가 적을 때 위/아래 스크롤이 자연스럽게 동작합니다. */
-el.searchInput.addEventListener('focus', () => {
-  state.keyboardWasOpen = true;
-  state.keyboardHideGraceUntil = 0;
-  syncUpdateBarVisibility();
-});
-el.searchInput.addEventListener('blur', () => {
-  // 키보드가 떠 있던 상태에서 blur가 발생한 직후 약 900ms 동안은
-  // Android의 V 버튼으로 키보드만 내린 상황일 수 있으므로 검색어를 지우지 않습니다.
-  if (state.keyboardWasOpen) {
-    state.keyboardHideGraceUntil = Date.now() + 1500;
-  }
-  state.keyboardWasOpen = false;
-  setTimeout(syncUpdateBarVisibility, 0);
-});
-el.searchInput.addEventListener('input', e => {
-  const wasEmpty = !String(state.query || '').trim();
-  state.query = e.target.value;
-  const isEmpty = !String(state.query || '').trim();
+el.searchInput.addEventListener('focus',syncBottomBar);
+el.searchInput.addEventListener('blur',()=>setTimeout(syncBottomBar,0));
 
-  // 첫 글자가 입력되는 순간 검색 화면을 history 한 단계로 기록합니다.
-  // 검색창의 focus/커서가 나중에 사라져도 이 단계는 그대로 남습니다.
-  if (wasEmpty && !isEmpty) {
-    ensureSearchHistory();
-  }
+el.searchInput.addEventListener('input',e=>{
+  const before=String(state.query||'').trim();
+  state.query=e.target.value;
+  const after=String(state.query||'').trim();
 
-  // 사용자가 키보드의 지우기 키로 직접 전부 삭제한 경우에는
-  // 현재 화면을 메인(base) 상태로 맞춥니다.
-  if (!wasEmpty && isEmpty && state.searchHistoryActive) {
-    state.searchHistoryActive = false;
-    try {
-      history.replaceState({ appView:'base' }, '', location.href);
-    } catch(e) {}
+  if(!before && after){
+    beginSearchHistoryIfNeeded();
   }
 
   renderResults();
 });
-el.searchInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter') {
+
+el.searchInput.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
     e.preventDefault();
     el.searchInput.blur();
   }
 });
-el.clearBtn.addEventListener('click', () => {
-  el.searchInput.value = '';
-  state.query = '';
-  state.searchHistoryActive = false;
-  try {
-    history.replaceState({ appView:'base' }, '', location.href);
-  } catch(e) {}
-  renderResults();
-  el.searchInput.focus();
-});
-el.chips.forEach(chip => chip.addEventListener('click', () => {
-  el.chips.forEach(c => c.classList.remove('active'));
+
+el.clearBtn.addEventListener('click',requestClearFromButton);
+
+el.chips.forEach(chip=>chip.addEventListener('click',()=>{
+  el.chips.forEach(c=>c.classList.remove('active'));
   chip.classList.add('active');
-  state.filter = chip.dataset.filter;
+  state.filter=chip.dataset.filter;
   renderResults();
 }));
-el.navSearch.addEventListener('click', showSearchView);
-el.navUpdate.addEventListener('click', checkForUpdates);
-el.sheetBackdrop.addEventListener('click', e => { if (e.target === el.sheetBackdrop) closeSheetByUser(); });
-el.copyBtn.addEventListener('click', copySelectedAddress);
-el.tmapBtn.addEventListener('click', openTmap);
-el.closeSheetBtn.addEventListener('click', closeSheetByUser);
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && state.currentView === 'search' && !state.records.length) {
-    loadAtStartup();
-  }
+
+el.updateMainBtn.addEventListener('click',checkForUpdates);
+
+el.sheetBackdrop.addEventListener('click',e=>{
+  if(e.target===el.sheetBackdrop) closeSheetByUser();
 });
-installAndroidBackHandler();
+el.closeSheetBtn.addEventListener('click',closeSheetByUser);
+el.copyBtn.addEventListener('click',copySelectedAddress);
+el.tmapBtn.addEventListener('click',openTmap);
+
+/*
+  예전 홈화면 앱이 오래된 파일을 계속 잡는 문제를 줄이기 위해
+  설치된 서비스워커가 있다면 업데이트 검사를 요청합니다.
+  앱의 localStorage 주소록 캐시는 유지합니다.
+*/
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.getRegistrations()
+    .then(regs=>regs.forEach(reg=>reg.update().catch(()=>{})))
+    .catch(()=>{});
+}
+
 loadAtStartup();
 </script>
 </body>
