@@ -413,7 +413,7 @@
 
 <script>
 'use strict';
-// BUILD: 2026-08-14-clean-v7-keyboard-hide-blur
+// BUILD: 2026-08-14-clean-v8-scroll-hides-keyboard
 
 /*
   v7 핵심 원칙
@@ -1056,6 +1056,63 @@ window.addEventListener('popstate', e => {
     history.back();
   }
 });
+
+/* ---------------------------
+   검색 결과 스크롤 시 키보드 자동 닫기
+---------------------------- */
+
+/*
+  Android Chrome에서 검색창에 포커스가 있고 키보드가 열린 상태에서
+  검색 결과 영역을 실제로 스크롤하려고 손가락을 움직이면 키보드를 닫습니다.
+
+  중요한 점:
+  - 단순 탭은 건드리지 않음
+  - 일정 거리 이상 움직여 '스크롤 의도'가 확인된 순간에만 blur()
+  - preventDefault()를 사용하지 않아 첫 스크롤 동작이 그대로 이어짐
+  - 검색어와 검색 결과는 그대로 유지
+*/
+let resultTouchStartX = 0;
+let resultTouchStartY = 0;
+let resultTouchTracking = false;
+const RESULT_SCROLL_THRESHOLD = 7;
+
+el.searchView.addEventListener('touchstart', e => {
+  if (document.activeElement !== el.searchInput) {
+    resultTouchTracking = false;
+    return;
+  }
+
+  const touch = e.touches && e.touches[0];
+  if (!touch) return;
+
+  resultTouchStartX = touch.clientX;
+  resultTouchStartY = touch.clientY;
+  resultTouchTracking = true;
+}, { passive: true });
+
+el.searchView.addEventListener('touchmove', e => {
+  if (!resultTouchTracking || document.activeElement !== el.searchInput) return;
+
+  const touch = e.touches && e.touches[0];
+  if (!touch) return;
+
+  const dx = Math.abs(touch.clientX - resultTouchStartX);
+  const dy = Math.abs(touch.clientY - resultTouchStartY);
+
+  if (Math.max(dx, dy) >= RESULT_SCROLL_THRESHOLD) {
+    resultTouchTracking = false;
+    el.searchInput.blur();
+    syncBottomBar();
+  }
+}, { passive: true });
+
+el.searchView.addEventListener('touchend', () => {
+  resultTouchTracking = false;
+}, { passive: true });
+
+el.searchView.addEventListener('touchcancel', () => {
+  resultTouchTracking = false;
+}, { passive: true });
 
 /* ---------------------------
    입력 이벤트
