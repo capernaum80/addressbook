@@ -413,181 +413,207 @@
 
 <script>
 'use strict';
-// BUILD: 2026-08-14-clean-v4-sheet-back-only
+// BUILD: 2026-08-14-clean-v6-v-as-search-key
 
 /*
-  새 구조의 핵심
+  하수처리장 TMAP - 뒤로가기/키보드 로직 전면 재작성
 
-  브라우저 history는 역할을 분리합니다.
+  원칙
+  1) 검색어가 있으면 실제 Android < 한 번 = 검색어 삭제
+  2) 검색어가 없으면 실제 Android < = 앱 종료
+  3) 키보드가 떠 있을 때 Android V가 발생하면
+     "키보드의 돋보기(검색/완료)를 누른 것"과 같은 처리:
+       - 검색어 유지
+       - 키보드 종료
+       - 앱 뒤로가기로 해석하지 않음
+  4) 키보드의 돋보기(Enter/Search)도 위와 완전히 같은 경로 사용
+  5) 상세창의 < = 검색결과로만 복귀
+  6) 커서 위치는 뒤로가기 판단에 사용하지 않음
 
-  base     : 앱 실행 직후의 실제 메인 상태
-  guard    : 앱 내부 뒤로가기 제어용 보호 상태
-  keyboard : 검색창 포커스/키보드가 올라온 상태
-  sheet    : 목적지 상세 화면
-  update   : 주소록 업데이트 화면
-
-  검색어 자체는 history 상태로 만들지 않습니다.
-
-  따라서:
-  - 키보드가 떠 있을 때 V(키보드 내리기) = keyboard -> guard
-    검색어는 절대 건드리지 않습니다.
-  - 키보드가 내려간 뒤 < = guard -> base
-    검색어가 있으면 검색어만 지우고 guard를 다시 만듭니다.
-  - 검색어가 없는 상태에서 < = guard -> base
-    앱의 실제 이전 화면으로 빠져나가도록 한 번 더 back 합니다.
+  history 층
+    base     : 실제 메인 기준점
+    guard    : 앱 내부 뒤로가기 제어층
+    keyboard : 키보드 표시 중 보호층
+    sheet    : 주소복사/TMAP 상세창
+    update   : 주소록 업데이트 화면
 */
 
-const PROXY_URL='https://script.google.com/macros/s/AKfycbxehvKiQkegGrCZbraOnHYdy15yWmNHHa4ulnGB4MFzBOHbmn8AeeOUU-jOjXBoCSc/exec';
-const STORAGE_KEY='facility_addressbook_cache_v1';
-const STORAGE_META_KEY='facility_addressbook_meta_v1';
-const REQUEST_TIMEOUT=20000;
-const RETRY_DELAYS=[800,1500];
+const PROXY_URL = 'https://script.google.com/macros/s/AKfycbxehvKiQkegGrCZbraOnHYdy15yWmNHHa4ulnGB4MFzBOHbmn8AeeOUU-jOjXBoCSc/exec';
+const STORAGE_KEY = 'facility_addressbook_cache_v1';
+const STORAGE_META_KEY = 'facility_addressbook_meta_v1';
+const REQUEST_TIMEOUT = 20000;
+const RETRY_DELAYS = [800, 1500];
 
-const state={
-  records:[],
-  filter:'all',
-  query:'',
-  selected:null,
-  localMeta:null,
-  remoteMeta:null,
-  leavingApp:false
+const state = {
+  records: [],
+  filter: 'all',
+  query: '',
+  selected: null,
+  localMeta: null,
+  remoteMeta: null,
+
+  leavingApp: false,
+
+  // 키보드 상태
+  keyboardActive: false,
+  keyboardBlurAt: 0,
+  keyboardBlurTimer: null,
+  keyboardCommit: false,
+
+  // 키보드를 정리한 직후 실행할 동작(예: 결과 항목 열기)
+  afterKeyboard: null
 };
 
-const el={
-  app:document.getElementById('app'),
-  versionText:document.getElementById('versionText'),
-  searchInput:document.getElementById('searchInput'),
-  clearBtn:document.getElementById('clearBtn'),
-  chips:[...document.querySelectorAll('.chip')],
-  searchState:document.getElementById('searchState'),
-  resultHeader:document.getElementById('resultHeader'),
-  resultList:document.getElementById('resultList'),
-  searchView:document.getElementById('searchView'),
-  updateView:document.getElementById('updateView'),
-  bottomNav:document.getElementById('bottomNav'),
-  updateMainBtn:document.getElementById('updateMainBtn'),
-  sheetBackdrop:document.getElementById('sheetBackdrop'),
-  sheetTitle:document.getElementById('sheetTitle'),
-  sheetAddress:document.getElementById('sheetAddress'),
-  copyBtn:document.getElementById('copyBtn'),
-  tmapBtn:document.getElementById('tmapBtn'),
-  closeSheetBtn:document.getElementById('closeSheetBtn'),
-  toast:document.getElementById('toast')
+const el = {
+  app: document.getElementById('app'),
+  versionText: document.getElementById('versionText'),
+  searchInput: document.getElementById('searchInput'),
+  clearBtn: document.getElementById('clearBtn'),
+  chips: [...document.querySelectorAll('.chip')],
+  searchState: document.getElementById('searchState'),
+  resultHeader: document.getElementById('resultHeader'),
+  resultList: document.getElementById('resultList'),
+  searchView: document.getElementById('searchView'),
+  updateView: document.getElementById('updateView'),
+  bottomNav: document.getElementById('bottomNav'),
+  updateMainBtn: document.getElementById('updateMainBtn'),
+  sheetBackdrop: document.getElementById('sheetBackdrop'),
+  sheetTitle: document.getElementById('sheetTitle'),
+  sheetAddress: document.getElementById('sheetAddress'),
+  copyBtn: document.getElementById('copyBtn'),
+  tmapBtn: document.getElementById('tmapBtn'),
+  closeSheetBtn: document.getElementById('closeSheetBtn'),
+  toast: document.getElementById('toast')
 };
 
-function currentLayer(){
+function layer() {
   return history.state && history.state.layer ? history.state.layer : '';
 }
 
-function installBaseHistory(){
-  try{
-    history.replaceState({layer:'base'},'',location.href);
-    history.pushState({layer:'guard'},'',location.href);
-  }catch(_){}
+function installHistory() {
+  try {
+    history.replaceState({ layer: 'base' }, '', location.href);
+    history.pushState({ layer: 'guard' }, '', location.href);
+  } catch (_) {}
 }
 
-function ensureGuard(){
-  if(currentLayer()!=='guard'){
-    try{history.pushState({layer:'guard'},'',location.href)}catch(_){}
+function ensureGuard() {
+  if (layer() !== 'guard') {
+    try { history.pushState({ layer: 'guard' }, '', location.href); } catch (_) {}
   }
 }
 
-function normalizeText(value){
-  return String(value||'')
+function normalizeText(value) {
+  return String(value || '')
     .toLowerCase()
-    .replace(/충청남도/g,'')
-    .replace(/부여군/g,'')
-    .replace(/[\s\-_\/.,()]/g,'');
+    .replace(/충청남도/g, '')
+    .replace(/부여군/g, '')
+    .replace(/[\s\-_\/.,()]/g, '');
 }
 
-function groupType(category,name){
-  return /처리장/.test(`${category||''} ${name||''}`)?'plant':'pump';
+function groupType(category, name) {
+  return /처리장/.test(`${category || ''} ${name || ''}`) ? 'plant' : 'pump';
 }
 
-function buildFullAddress(address){
-  const text=String(address||'').trim();
-  if(!text)return '';
-  if(/^충청남도\s*부여군/.test(text))return text;
-  return '충청남도 부여군 '+text;
+function buildFullAddress(address) {
+  const text = String(address || '').trim();
+  if (!text) return '';
+  if (/^충청남도\s*부여군/.test(text)) return text;
+  return '충청남도 부여군 ' + text;
 }
 
-function escapeHtml(str){
-  return String(str||'').replace(/[&<>"']/g,m=>({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+function escapeHtml(str) {
+  return String(str || '').replace(/[&<>"']/g, m => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
   }[m]));
 }
 
-function formatTime(value){
-  if(!value)return '';
-  const d=new Date(value);
-  if(isNaN(d))return String(value);
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+function formatTime(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (isNaN(d)) return String(value);
+
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
 }
 
-function showToast(message){
-  el.toast.textContent=message;
+function showToast(message) {
+  el.toast.textContent = message;
   el.toast.classList.add('show');
   clearTimeout(showToast.timer);
-  showToast.timer=setTimeout(()=>el.toast.classList.remove('show'),1800);
+  showToast.timer = setTimeout(() => el.toast.classList.remove('show'), 1800);
 }
 
-function setVersionText(meta,prefix='저장된 주소록'){
-  if(!meta){
-    el.versionText.textContent='저장된 주소록이 없습니다.';
+function setVersionText(meta, prefix = '저장된 주소록') {
+  if (!meta) {
+    el.versionText.textContent = '저장된 주소록이 없습니다.';
     return;
   }
-  const when=formatTime(meta.updated||meta.version);
-  const total=meta.total?` · ${meta.total}개`:'';
-  el.versionText.textContent=`${prefix}: ${when}${total}`;
+
+  const when = formatTime(meta.updated || meta.version);
+  const total = meta.total ? ` · ${meta.total}개` : '';
+  el.versionText.textContent = `${prefix}: ${when}${total}`;
 }
 
-function saveLocal(records,meta){
-  localStorage.setItem(STORAGE_KEY,JSON.stringify(records));
-  localStorage.setItem(STORAGE_META_KEY,JSON.stringify(meta));
+function saveLocal(records, meta) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+  localStorage.setItem(STORAGE_META_KEY, JSON.stringify(meta));
 }
 
-function loadLocal(){
-  try{
-    return{
-      records:JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'),
-      meta:JSON.parse(localStorage.getItem(STORAGE_META_KEY)||'null')
+function loadLocal() {
+  try {
+    return {
+      records: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'),
+      meta: JSON.parse(localStorage.getItem(STORAGE_META_KEY) || 'null')
     };
-  }catch(_){
-    return{records:[],meta:null};
+  } catch (_) {
+    return { records: [], meta: null };
   }
 }
 
-function hydrateRecords(records){
-  return(records||[]).map((r,idx)=>{
-    const category=r.category||'';
-    const name=String(r.name||'').trim();
-    const address=String(r.address||'').trim();
-    const type=r.type||groupType(category,name);
-    return{
-      id:r.id||idx+1,
-      category,name,address,
-      fullAddress:buildFullAddress(address),
+function hydrateRecords(records) {
+  return (records || []).map((r, idx) => {
+    const category = r.category || '';
+    const name = String(r.name || '').trim();
+    const address = String(r.address || '').trim();
+    const type = r.type || groupType(category, name);
+
+    return {
+      id: r.id || idx + 1,
+      category,
+      name,
+      address,
+      fullAddress: buildFullAddress(address),
       type,
-      searchable:normalizeText(`${category} ${name} ${address} ${r.aliases||''}`)
+      searchable: normalizeText(`${category} ${name} ${address} ${r.aliases || ''}`)
     };
-  }).filter(r=>r.name&&r.address);
+  }).filter(r => r.name && r.address);
 }
 
-function syncBottomBar(){
-  const searching=
-    document.activeElement===el.searchInput ||
-    String(state.query||'').trim().length>0 ||
+function syncBottomBar() {
+  const searching =
+    document.activeElement === el.searchInput ||
+    String(state.query || '').trim().length > 0 ||
     el.sheetBackdrop.classList.contains('show') ||
-    el.updateView.style.display==='block';
+    el.updateView.style.display === 'block';
 
-  el.bottomNav.classList.toggle('hidden',searching);
-  el.app.classList.toggle('searching',searching);
+  el.bottomNav.classList.toggle('hidden', searching);
+  el.app.classList.toggle('searching', searching);
 }
 
-function renderEmptyHero(){
-  el.resultHeader.style.display='none';
-  el.resultList.innerHTML='';
-  el.searchState.innerHTML=`
+function renderEmptyHero() {
+  el.resultHeader.style.display = 'none';
+  el.resultList.innerHTML = '';
+  el.searchState.innerHTML = `
     <div class="hero">
       <div class="big">⌕</div>
       <h2>목적지명을 검색하세요</h2>
@@ -595,10 +621,10 @@ function renderEmptyHero(){
     </div>`;
 }
 
-function renderNoResult(){
-  el.resultHeader.style.display='none';
-  el.resultList.innerHTML='';
-  el.searchState.innerHTML=`
+function renderNoResult() {
+  el.resultHeader.style.display = 'none';
+  el.resultList.innerHTML = '';
+  el.searchState.innerHTML = `
     <div class="hero" style="margin-top:30px">
       <div class="big">⌕</div>
       <h2>검색 결과가 없습니다</h2>
@@ -606,171 +632,262 @@ function renderNoResult(){
     </div>`;
 }
 
-function renderResults(){
+function renderResults() {
   syncBottomBar();
 
-  const raw=String(state.query||'');
-  if(!raw.trim()){
+  const raw = String(state.query || '');
+  if (!raw.trim()) {
     renderEmptyHero();
     return;
   }
 
-  const q=normalizeText(raw);
-  const filtered=state.records.filter(r=>{
-    if(state.filter!=='all'&&r.type!==state.filter)return false;
+  const q = normalizeText(raw);
+  const filtered = state.records.filter(r => {
+    if (state.filter !== 'all' && r.type !== state.filter) return false;
     return r.searchable.includes(q);
   });
 
-  el.searchState.innerHTML='';
-  if(!filtered.length){
+  el.searchState.innerHTML = '';
+
+  if (!filtered.length) {
     renderNoResult();
     return;
   }
 
-  el.resultHeader.style.display='block';
-  el.resultHeader.textContent=`검색 결과 ${filtered.length}개`;
-  el.resultList.innerHTML=filtered.map(item=>`
+  el.resultHeader.style.display = 'block';
+  el.resultHeader.textContent = `검색 결과 ${filtered.length}개`;
+
+  el.resultList.innerHTML = filtered.map(item => `
     <button class="item" type="button" data-id="${item.id}">
       <div class="item-main">
         <div class="item-title">${escapeHtml(item.name)}</div>
         <div class="item-address">${escapeHtml(item.address)}</div>
-        <div class="tag ${item.type}">${item.type==='plant'?'처리장':'맨홀·펌프장'}</div>
+        <div class="tag ${item.type}">${item.type === 'plant' ? '처리장' : '맨홀·펌프장'}</div>
       </div>
       <div class="go">➜</div>
     </button>
   `).join('');
 
-  el.resultList.querySelectorAll('.item').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const found=state.records.find(r=>String(r.id)===btn.dataset.id);
-      if(found)openSheet(found);
+  el.resultList.querySelectorAll('.item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const found = state.records.find(r => String(r.id) === btn.dataset.id);
+      if (found) runAfterKeyboard(() => openSheetNow(found));
     });
   });
 }
 
-function clearSearch({focus=false}={}){
-  el.searchInput.value='';
-  state.query='';
+function resetFilter() {
+  state.filter = 'all';
+  el.chips.forEach(c => c.classList.toggle('active', c.dataset.filter === 'all'));
+}
+
+function clearSearch() {
+  el.searchInput.value = '';
+  state.query = '';
+  el.searchInput.blur();
   resetFilter();
   renderResults();
-  if(focus)setTimeout(()=>el.searchInput.focus(),0);
-  else el.searchInput.blur();
+  syncBottomBar();
 }
 
-function resetFilter(){
-  state.filter='all';
-  el.chips.forEach(c=>c.classList.toggle('active',c.dataset.filter==='all'));
+function showSearchSurface() {
+  el.searchView.style.display = 'block';
+  el.updateView.style.display = 'none';
 }
 
-function showSearchSurface(){
-  el.searchView.style.display='block';
-  el.updateView.style.display='none';
-}
+/* ---------------------------
+   키보드 처리
+---------------------------- */
 
-function openKeyboardLayer(){
-  if(currentLayer()==='guard'){
-    try{history.pushState({layer:'keyboard'},'',location.href)}catch(_){}
+function cancelKeyboardBlurTimer() {
+  if (state.keyboardBlurTimer) {
+    clearTimeout(state.keyboardBlurTimer);
+    state.keyboardBlurTimer = null;
   }
 }
 
-function closeKeyboardLikeSearchKey(){
+function markKeyboardFocused() {
+  cancelKeyboardBlurTimer();
+  state.keyboardActive = true;
+  state.keyboardBlurAt = 0;
+
+  if (layer() === 'guard') {
+    try { history.pushState({ layer: 'keyboard' }, '', location.href); } catch (_) {}
+  }
+
+  syncBottomBar();
+}
+
+function markKeyboardBlurred() {
   /*
-    키보드의 돋보기(검색) 키를 누른 것과 같은 결과:
-    - 입력값 유지
-    - 키보드만 닫기
-    - history는 keyboard -> guard로 되돌림
+    Android V는 기기에 따라
+    blur -> popstate 또는 popstate -> blur 순서가 다를 수 있습니다.
+
+    그래서 blur가 발생했다고 keyboardActive를 즉시 false로 만들지 않고
+    짧은 유예시간 동안 "방금 키보드가 열려 있었음" 상태를 유지합니다.
+  */
+  state.keyboardBlurAt = Date.now();
+  cancelKeyboardBlurTimer();
+
+  state.keyboardBlurTimer = setTimeout(() => {
+    state.keyboardActive = false;
+    state.keyboardBlurTimer = null;
+  }, 900);
+
+  setTimeout(syncBottomBar, 0);
+}
+
+function keyboardWasJustOpen() {
+  return state.keyboardActive ||
+    (state.keyboardBlurAt && Date.now() - state.keyboardBlurAt < 900);
+}
+
+function finishKeyboardDismiss() {
+  cancelKeyboardBlurTimer();
+  state.keyboardActive = false;
+  state.keyboardBlurAt = 0;
+  state.keyboardCommit = false;
+
+  // Android V를 눌렀을 때도 "키보드 돋보기"와 같은 결과가 되도록
+  // 검색창 포커스를 명시적으로 해제합니다.
+  el.searchInput.blur();
+
+  ensureGuard();
+  renderResults();
+  syncBottomBar();
+
+  const next = state.afterKeyboard;
+  state.afterKeyboard = null;
+
+  if (typeof next === 'function') {
+    setTimeout(next, 0);
+  }
+}
+
+function commitKeyboardLikeSearchKey() {
+  /*
+    실제 키보드의 돋보기(검색/완료) 버튼:
+    검색어 유지 + 키보드만 종료.
+
+    keyboard history를 한 단계 뒤로 보내고
+    popstate에서 finishKeyboardDismiss()로 마무리합니다.
   */
   el.searchInput.blur();
 
-  if(currentLayer()==='keyboard'){
+  if (layer() === 'keyboard') {
+    state.keyboardCommit = true;
     history.back();
-  }else{
-    ensureGuard();
+  } else {
+    finishKeyboardDismiss();
   }
 }
 
-function openSheet(item){
-  // 상세창을 열기 전 키보드가 떠 있으면 먼저 키보드 상태를 정리
-  if(currentLayer()==='keyboard'){
-    el.searchInput.blur();
-    history.back();
-    setTimeout(()=>openSheet(item),0);
-    return;
+function runAfterKeyboard(fn) {
+  if (layer() === 'keyboard' || keyboardWasJustOpen()) {
+    state.afterKeyboard = fn;
+    commitKeyboardLikeSearchKey();
+  } else {
+    fn();
   }
+}
 
-  state.selected=item;
-  el.sheetTitle.textContent=item.name;
-  el.sheetAddress.textContent=item.fullAddress;
+/* ---------------------------
+   상세창
+---------------------------- */
+
+function openSheetNow(item) {
+  state.selected = item;
+  el.sheetTitle.textContent = item.name;
+  el.sheetAddress.textContent = item.fullAddress;
   el.sheetBackdrop.classList.add('show');
 
-  try{history.pushState({layer:'sheet'},'',location.href)}catch(_){}
+  try { history.pushState({ layer: 'sheet' }, '', location.href); } catch (_) {}
   syncBottomBar();
 }
 
-function closeSheetVisual(){
+function closeSheetVisual() {
   el.sheetBackdrop.classList.remove('show');
-  state.selected=null;
+  state.selected = null;
+  showSearchSurface();
+  renderResults();
   syncBottomBar();
 }
 
-function closeSheetByUser(){
-  if(currentLayer()==='sheet')history.back();
-  else closeSheetVisual();
+function closeSheetByUser() {
+  if (layer() === 'sheet') {
+    history.back();
+  } else {
+    closeSheetVisual();
+  }
 }
 
-async function copySelectedAddress(){
-  if(!state.selected)return;
-  try{
+async function copySelectedAddress() {
+  if (!state.selected) return;
+
+  try {
     await navigator.clipboard.writeText(state.selected.fullAddress);
     showToast('주소를 복사했습니다');
-  }catch(_){
+  } catch (_) {
     showToast('주소 복사에 실패했습니다');
   }
 }
 
-async function openTmap(){
-  if(!state.selected)return;
-  const address=state.selected.fullAddress;
-  try{await navigator.clipboard.writeText(address)}catch(_){}
-  window.location.href=`tmap://search?name=${encodeURIComponent(address)}`;
+async function openTmap() {
+  if (!state.selected) return;
+
+  const address = state.selected.fullAddress;
+
+  try {
+    await navigator.clipboard.writeText(address);
+  } catch (_) {}
+
+  window.location.href = `tmap://search?name=${encodeURIComponent(address)}`;
 }
 
-function showUpdateLoading(){
+/* ---------------------------
+   주소록 업데이트
+---------------------------- */
+
+function showUpdateLoading() {
   closeSheetVisual();
-  el.searchView.style.display='none';
-  el.updateView.style.display='block';
-  el.updateView.innerHTML=`
+  el.searchView.style.display = 'none';
+  el.updateView.style.display = 'block';
+
+  el.updateView.innerHTML = `
     <div class="status-card">
       <div class="emoji">↻</div>
       <h3>주소록 업데이트 확인 중...</h3>
       <p>잠시만 기다려주세요.</p>
     </div>`;
+
   syncBottomBar();
 }
 
-function renderUpdateResult(meta,hasUpdate){
-  const local=state.localMeta||{};
-  el.updateView.innerHTML=`
+function renderUpdateResult(meta, hasUpdate) {
+  const local = state.localMeta || {};
+
+  el.updateView.innerHTML = `
     <div class="update-card">
-      <div class="emoji">${hasUpdate?'⬇':'✓'}</div>
-      <h3>${hasUpdate?'새로운 주소록이 있습니다.':'현재 최신 주소록입니다.'}</h3>
-      <p>${hasUpdate?'업데이트하시겠습니까?':'현재 저장된 주소록이 가장 최신 버전입니다.'}</p>
+      <div class="emoji">${hasUpdate ? '⬇' : '✓'}</div>
+      <h3>${hasUpdate ? '새로운 주소록이 있습니다.' : '현재 최신 주소록입니다.'}</h3>
+      <p>${hasUpdate ? '업데이트하시겠습니까?' : '현재 저장된 주소록이 가장 최신 버전입니다.'}</p>
       <div class="rows">
-        <div class="row"><strong>현재 버전</strong><span>${formatTime(local.updated||local.version)||'-'}</span></div>
-        <div class="row"><strong>새 버전</strong><span>${formatTime(meta.updated||meta.version)||'-'}</span></div>
-        <div class="row"><strong>주소 개수</strong><span>${meta.total||0}개</span></div>
+        <div class="row"><strong>현재 버전</strong><span>${formatTime(local.updated || local.version) || '-'}</span></div>
+        <div class="row"><strong>새 버전</strong><span>${formatTime(meta.updated || meta.version) || '-'}</span></div>
+        <div class="row"><strong>주소 개수</strong><span>${meta.total || 0}개</span></div>
       </div>
       <div class="update-actions">
         <button class="btn-outline" id="cancelUpdateBtn" type="button">취소</button>
-        <button class="btn-primary" id="runUpdateBtn" type="button">${hasUpdate?'업데이트':'다시받기'}</button>
+        <button class="btn-primary" id="runUpdateBtn" type="button">${hasUpdate ? '업데이트' : '다시받기'}</button>
       </div>
     </div>`;
-  document.getElementById('cancelUpdateBtn').addEventListener('click',closeUpdateByUser);
-  document.getElementById('runUpdateBtn').addEventListener('click',bootstrapFromServer);
+
+  document.getElementById('cancelUpdateBtn').addEventListener('click', closeUpdateByUser);
+  document.getElementById('runUpdateBtn').addEventListener('click', bootstrapFromServer);
 }
 
-function renderUpdateError(message){
-  el.updateView.innerHTML=`
+function renderUpdateError(message) {
+  el.updateView.innerHTML = `
     <div class="status-card">
       <div class="emoji">⚠</div>
       <h3>업데이트 확인 실패</h3>
@@ -780,135 +897,165 @@ function renderUpdateError(message){
         <button class="btn-primary" id="retryUpdateBtn" type="button">다시 시도</button>
       </div>
     </div>`;
-  document.getElementById('backUpdateBtn').addEventListener('click',closeUpdateByUser);
-  document.getElementById('retryUpdateBtn').addEventListener('click',checkForUpdates);
+
+  document.getElementById('backUpdateBtn').addEventListener('click', closeUpdateByUser);
+  document.getElementById('retryUpdateBtn').addEventListener('click', checkForUpdates);
 }
 
-function closeUpdateByUser(){
-  if(currentLayer()==='update')history.back();
-  else{
+function closeUpdateByUser() {
+  if (layer() === 'update') {
+    history.back();
+  } else {
     showSearchSurface();
+    ensureGuard();
+    renderResults();
     syncBottomBar();
   }
 }
 
-function jsonp(params){
-  return new Promise((resolve,reject)=>{
-    const callback='__addr_'+Date.now()+'_'+Math.random().toString(36).slice(2);
-    const script=document.createElement('script');
-    let finished=false;
+/* ---------------------------
+   서버 통신
+---------------------------- */
 
-    const cleanup=()=>{
-      if(finished)return;
-      finished=true;
+function jsonp(params) {
+  return new Promise((resolve, reject) => {
+    const callback = '__addr_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const script = document.createElement('script');
+    let finished = false;
+
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
       clearTimeout(timer);
-      try{delete window[callback]}catch(_){}
-      try{script.remove()}catch(_){}
+      try { delete window[callback]; } catch (_) {}
+      try { script.remove(); } catch (_) {}
     };
 
-    const timer=setTimeout(()=>{
+    const timer = setTimeout(() => {
       cleanup();
       reject(new Error('응답 시간이 초과되었습니다.'));
-    },REQUEST_TIMEOUT);
+    }, REQUEST_TIMEOUT);
 
-    window[callback]=payload=>{
+    window[callback] = payload => {
       cleanup();
-      resolve(payload||{});
+      resolve(payload || {});
     };
 
-    script.onerror=()=>{
+    script.onerror = () => {
       cleanup();
       reject(new Error('서버에 연결하지 못했습니다.'));
     };
 
-    const query=new URLSearchParams({...params,callback,t:Date.now().toString()});
-    script.src=PROXY_URL+'?'+query.toString();
+    const query = new URLSearchParams({
+      ...params,
+      callback,
+      t: Date.now().toString()
+    });
+
+    script.src = PROXY_URL + '?' + query.toString();
     document.head.appendChild(script);
   });
 }
 
-async function request(params){
+async function request(params) {
   let lastError;
-  for(let i=0;i<3;i++){
-    try{
-      const res=await jsonp(params);
-      if(!res.ok)throw new Error(res.error||'요청에 실패했습니다.');
+
+  for (let i = 0; i < 3; i++) {
+    try {
+      const res = await jsonp(params);
+      if (!res.ok) throw new Error(res.error || '요청에 실패했습니다.');
       return res;
-    }catch(err){
-      lastError=err;
-      if(i<2)await new Promise(r=>setTimeout(r,RETRY_DELAYS[Math.min(i,RETRY_DELAYS.length-1)]));
+    } catch (err) {
+      lastError = err;
+
+      if (i < 2) {
+        await new Promise(r =>
+          setTimeout(r, RETRY_DELAYS[Math.min(i, RETRY_DELAYS.length - 1)])
+        );
+      }
     }
   }
+
   throw lastError;
 }
 
-async function bootstrapFromServer(){
+async function bootstrapFromServer() {
   showUpdateLoading();
-  try{
-    const res=await request({action:'bootstrap'});
-    state.records=hydrateRecords(res.records);
-    state.localMeta={version:res.version,updated:res.updated,total:res.total};
-    saveLocal(state.records,state.localMeta);
+
+  try {
+    const res = await request({ action: 'bootstrap' });
+
+    state.records = hydrateRecords(res.records);
+    state.localMeta = {
+      version: res.version,
+      updated: res.updated,
+      total: res.total
+    };
+
+    saveLocal(state.records, state.localMeta);
     setVersionText(state.localMeta);
     showToast('주소록을 업데이트했습니다');
 
-    if(currentLayer()==='update')history.back();
-    else{
+    if (layer() === 'update') {
+      history.back();
+    } else {
       showSearchSurface();
+      ensureGuard();
       renderResults();
       syncBottomBar();
     }
-  }catch(err){
-    renderUpdateError(err.message||'주소록을 받아오지 못했습니다.');
+  } catch (err) {
+    renderUpdateError(err.message || '주소록을 받아오지 못했습니다.');
   }
 }
 
-async function checkForUpdates(){
-  if(currentLayer()==='keyboard'){
-    el.searchInput.blur();
-    history.back();
-    setTimeout(checkForUpdates,0);
+function checkForUpdatesNow() {
+  try { history.pushState({ layer: 'update' }, '', location.href); } catch (_) {}
+  showUpdateLoading();
+
+  request({ action: 'meta' })
+    .then(res => {
+      state.remoteMeta = {
+        version: res.version,
+        updated: res.updated,
+        total: res.total
+      };
+
+      const localVersion = state.localMeta?.version || '';
+      const remoteVersion = state.remoteMeta.version || '';
+      const hasUpdate =
+        !localVersion ||
+        String(localVersion) !== String(remoteVersion);
+
+      renderUpdateResult(state.remoteMeta, hasUpdate);
+    })
+    .catch(err => {
+      renderUpdateError(err.message || '업데이트 정보를 가져오지 못했습니다.');
+    });
+}
+
+function checkForUpdates() {
+  runAfterKeyboard(checkForUpdatesNow);
+}
+
+/* ---------------------------
+   Android 시스템 뒤로가기
+---------------------------- */
+
+window.addEventListener('popstate', e => {
+  if (state.leavingApp) return;
+
+  const targetLayer = e.state?.layer || '';
+
+  // 1) 상세창의 뒤로가기 = 검색결과로만 복귀
+  if (el.sheetBackdrop.classList.contains('show')) {
+    closeSheetVisual();
+    ensureGuard();
     return;
   }
 
-  try{history.pushState({layer:'update'},'',location.href)}catch(_){}
-  showUpdateLoading();
-
-  try{
-    const res=await request({action:'meta'});
-    state.remoteMeta={version:res.version,updated:res.updated,total:res.total};
-    const localVersion=state.localMeta?.version||'';
-    const remoteVersion=state.remoteMeta.version||'';
-    const hasUpdate=!localVersion||String(localVersion)!==String(remoteVersion);
-    renderUpdateResult(state.remoteMeta,hasUpdate);
-  }catch(err){
-    renderUpdateError(err.message||'업데이트 정보를 가져오지 못했습니다.');
-  }
-}
-
-/* 일반 텍스트 길게 누르기/Chrome 검색 메뉴 방지 */
-document.addEventListener('contextmenu',e=>{
-  if(!e.target.closest('input,textarea'))e.preventDefault();
-},true);
-document.addEventListener('selectstart',e=>{
-  if(!e.target.closest('input,textarea'))e.preventDefault();
-},true);
-document.addEventListener('dragstart',e=>{
-  if(!e.target.closest('input,textarea'))e.preventDefault();
-},true);
-
-/*
-  시스템 뒤로가기 핵심 처리
-*/
-window.addEventListener('popstate',e=>{
-  const layer=e.state?.layer||'';
-
-  if(state.leavingApp)return;
-
-  // sheet -> guard : 상세창에서의 뒤로가기는 무조건 '이전 검색결과'로만 복귀
-  // 검색어, 검색결과, 선택한 필터는 그대로 유지하고 앱 종료는 절대 하지 않습니다.
-  if(el.sheetBackdrop.classList.contains('show')){
-    closeSheetVisual();
+  // 2) 업데이트 화면의 뒤로가기 = 검색 화면으로 복귀
+  if (el.updateView.style.display === 'block') {
     showSearchSurface();
     ensureGuard();
     renderResults();
@@ -916,99 +1063,125 @@ window.addEventListener('popstate',e=>{
     return;
   }
 
-  // update -> guard : 업데이트 화면만 닫기
-  if(el.updateView.style.display==='block'){
-    showSearchSurface();
+  /*
+    3) 키보드가 떠 있던 상태에서 발생한 popstate
+       = Android V를 누른 것으로 처리
+       = 키보드 돋보기(검색/완료)와 동일한 경로
+
+       검색어는 절대 지우지 않습니다.
+  */
+  if (state.keyboardCommit || keyboardWasJustOpen()) {
+    finishKeyboardDismiss();
+    return;
+  }
+
+  /*
+    4) 여기부터는 실제 Android < 뒤로가기
+
+       커서/포커스는 전혀 보지 않습니다.
+       검색창에 글자가 있으면 무조건 먼저 글자만 지웁니다.
+  */
+  const hasQuery = String(state.query || '').trim().length > 0;
+
+  if (hasQuery) {
+    clearSearch();
     ensureGuard();
-    syncBottomBar();
     return;
   }
 
-  // keyboard -> guard : V 또는 키보드 돋보기 = 키보드만 닫기, 검색어 유지
-  if(layer==='guard' && document.activeElement!==el.searchInput){
-    // 검색어는 절대 건드리지 않음
-    syncBottomBar();
-    return;
-  }
-
-  // guard -> base : 실제 < 뒤로가기
-  if(layer==='base'){
-    const hasQuery=String(state.query||'').trim().length>0;
-
-    if(hasQuery){
-      // 커서 위치와 상관없이 글자가 있으면 무조건 글자부터 삭제
-      clearSearch({focus:false});
-      ensureGuard();
-      return;
-    }
-
-    // 글자가 없으면 앱을 빠져나감
-    state.leavingApp=true;
+  // 5) 검색어 없는 메인에서 < = 앱 종료
+  if (targetLayer === 'base' || targetLayer === 'guard' || !targetLayer) {
+    state.leavingApp = true;
     history.back();
   }
 });
 
-el.searchInput.addEventListener('focus',()=>{
-  openKeyboardLayer();
-  syncBottomBar();
-});
+/* ---------------------------
+   입력 이벤트
+---------------------------- */
 
-el.searchInput.addEventListener('blur',()=>setTimeout(syncBottomBar,0));
+el.searchInput.addEventListener('focus', markKeyboardFocused);
+el.searchInput.addEventListener('blur', markKeyboardBlurred);
 
-el.searchInput.addEventListener('input',e=>{
-  state.query=e.target.value;
+el.searchInput.addEventListener('input', e => {
+  state.query = e.target.value;
   renderResults();
 });
 
-el.searchInput.addEventListener('keydown',e=>{
-  if(e.key==='Enter'){
+el.searchInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
     e.preventDefault();
-    closeKeyboardLikeSearchKey();
+    commitKeyboardLikeSearchKey();
   }
 });
 
-el.clearBtn.addEventListener('click',()=>{
-  clearSearch({focus:true});
-});
-
-el.chips.forEach(chip=>chip.addEventListener('click',()=>{
-  el.chips.forEach(c=>c.classList.remove('active'));
-  chip.classList.add('active');
-  state.filter=chip.dataset.filter;
+el.clearBtn.addEventListener('click', () => {
+  el.searchInput.value = '';
+  state.query = '';
+  resetFilter();
   renderResults();
-}));
-
-el.updateMainBtn.addEventListener('click',checkForUpdates);
-el.sheetBackdrop.addEventListener('click',e=>{
-  if(e.target===el.sheetBackdrop)closeSheetByUser();
+  el.searchInput.focus();
 });
-el.closeSheetBtn.addEventListener('click',closeSheetByUser);
-el.copyBtn.addEventListener('click',copySelectedAddress);
-el.tmapBtn.addEventListener('click',openTmap);
 
-function loadAtStartup(){
-  installBaseHistory();
+el.chips.forEach(chip => {
+  chip.addEventListener('click', () => {
+    el.chips.forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    state.filter = chip.dataset.filter;
+    renderResults();
+  });
+});
 
-  const local=loadLocal();
-  state.records=hydrateRecords(local.records||[]);
-  state.localMeta=local.meta;
+el.updateMainBtn.addEventListener('click', checkForUpdates);
+
+el.sheetBackdrop.addEventListener('click', e => {
+  if (e.target === el.sheetBackdrop) closeSheetByUser();
+});
+
+el.closeSheetBtn.addEventListener('click', closeSheetByUser);
+el.copyBtn.addEventListener('click', copySelectedAddress);
+el.tmapBtn.addEventListener('click', openTmap);
+
+/* 일반 텍스트 길게 누르기/Chrome 검색 메뉴 방지 */
+document.addEventListener('contextmenu', e => {
+  if (!e.target.closest('input,textarea')) e.preventDefault();
+}, true);
+
+document.addEventListener('selectstart', e => {
+  if (!e.target.closest('input,textarea')) e.preventDefault();
+}, true);
+
+document.addEventListener('dragstart', e => {
+  if (!e.target.closest('input,textarea')) e.preventDefault();
+}, true);
+
+/* ---------------------------
+   시작
+---------------------------- */
+
+function loadAtStartup() {
+  installHistory();
+
+  const local = loadLocal();
+  state.records = hydrateRecords(local.records || []);
+  state.localMeta = local.meta;
 
   setVersionText(state.localMeta);
   showSearchSurface();
   renderResults();
   syncBottomBar();
 
-  if(!state.records.length){
-    try{history.pushState({layer:'update'},'',location.href)}catch(_){}
+  if (!state.records.length) {
+    try { history.pushState({ layer: 'update' }, '', location.href); } catch (_) {}
     bootstrapFromServer();
   }
 }
 
-/* 오래된 홈화면 앱 캐시 방지 보조 */
-if('serviceWorker' in navigator){
+/* 홈화면 웹앱의 오래된 캐시 업데이트 보조 */
+if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations()
-    .then(regs=>regs.forEach(reg=>reg.update().catch(()=>{})))
-    .catch(()=>{});
+    .then(regs => regs.forEach(reg => reg.update().catch(() => {})))
+    .catch(() => {});
 }
 
 loadAtStartup();
