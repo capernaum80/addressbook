@@ -433,6 +433,7 @@
 
 <script>
 'use strict';
+// BUILD: 2026-08-14-clean-v2-keyboard-v-preserve
 
 /*
   하수처리장 TMAP - 새로 설계한 단순 상태 구조
@@ -461,7 +462,9 @@ const state = {
   localMeta:null,
   remoteMeta:null,
   view:'base',
-  pendingRefocus:false
+  pendingRefocus:false,
+  keyboardSession:false,
+  keyboardBlurAt:0
 };
 
 const el = {
@@ -671,6 +674,7 @@ function showSearchSurface(){
 }
 
 function openSheet(item){
+  state.keyboardSession=false;
   state.selected=item;
   el.sheetTitle.textContent=item.name;
   el.sheetAddress.textContent=item.fullAddress;
@@ -979,11 +983,66 @@ window.addEventListener('popstate',e=>{
   // 앱보다 이전의 브라우저 기록으로 이동하는 경우에는 가로채지 않습니다.
   if(!target) return;
 
+  /*
+    Android 키보드가 떠 있을 때 하단의 V를 누르면,
+    일부 Chrome/기기에서는 '키보드 닫기'와 함께 popstate까지 발생합니다.
+    이 신호를 일반 뒤로가기로 처리하면 검색어가 지워지는 문제가 생깁니다.
+
+    그래서 검색창이 방금까지 키보드 입력 상태였던 경우에는
+    이번 popstate를 '키보드만 내리기'로 해석합니다.
+    검색어는 그대로 유지하고 search history를 다시 한 단계 확보합니다.
+  */
+  const hasQuery=String(state.query||'').trim().length>0;
+  const justBlurred=Date.now()-state.keyboardBlurAt < 1200;
+
+  if(hasQuery && state.keyboardSession && (document.activeElement===el.searchInput || justBlurred)){
+    state.keyboardSession=false;
+
+    // V 동작으로 search -> base까지 빠져버렸다면
+    // 검색어를 유지한 채 search 상태를 다시 쌓아 다음 <가 검색어 삭제가 되게 합니다.
+    if(target==='base'){
+      try{
+        history.pushState({view:'search'},'',location.href);
+      }catch(_){}
+      state.view='search';
+      showSearchSurface();
+      renderResults();
+      syncBottomBar();
+      return;
+    }
+
+    // target이 search면 그대로 검색 화면을 유지합니다.
+    if(target==='search'){
+      state.view='search';
+      showSearchSurface();
+      renderResults();
+      syncBottomBar();
+      return;
+    }
+  }
+
+  state.keyboardSession=false;
   handleBackTarget(target);
 });
 
-el.searchInput.addEventListener('focus',syncBottomBar);
-el.searchInput.addEventListener('blur',()=>setTimeout(syncBottomBar,0));
+el.searchInput.addEventListener('focus',()=>{
+  state.keyboardSession=true;
+  state.keyboardBlurAt=0;
+  syncBottomBar();
+});
+
+el.searchInput.addEventListener('blur',()=>{
+  state.keyboardBlurAt=Date.now();
+  setTimeout(syncBottomBar,0);
+
+  // 일반 화면 터치로 키보드를 내린 경우에는 잠시 뒤 세션을 종료합니다.
+  // V 버튼에 의한 popstate가 먼저/나중 어느 순서로 와도 1.2초 동안은 판별 가능합니다.
+  setTimeout(()=>{
+    if(Date.now()-state.keyboardBlurAt >= 1200){
+      state.keyboardSession=false;
+    }
+  },1250);
+});
 
 el.searchInput.addEventListener('input',e=>{
   const before=String(state.query||'').trim();
