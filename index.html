@@ -588,10 +588,25 @@ async function checkForUpdates(){
 
 
 /* Android 뒤로가기 버튼 처리
-   - 상세창이 열려 있으면 상세창 닫기
-   - 주소록 업데이트 화면이면 검색 화면으로 돌아가기
-   - 검색어가 있으면 검색어 지우고 첫 화면으로 돌아가기
-   - 첫 화면에서는 한 번 더 누르면 종료되도록 보호 */
+   - 키보드가 떠 있을 때의 V 버튼은 Android가 키보드만 내리도록 그대로 둠
+   - 키보드가 내려간 뒤 < 뒤로가기 → 검색어만 지움
+   - 검색어를 지운 직후 다시 < 뒤로가기 → 앱 종료
+   - 상세창 → 닫기
+   - 업데이트 화면 → 검색 화면
+   - 평상시 첫 화면 → 한 번 더 누르면 종료 안내 */
+function clearSearchByBack(){
+  if (!String(state.query || '').trim()) return false;
+
+  el.searchInput.value = '';
+  state.query = '';
+  el.searchInput.blur();
+  renderResults();
+
+  // 검색어를 뒤로가기로 지운 직후에는 다음 뒤로가기로 바로 종료
+  state.exitArmUntil = Date.now() + 2500;
+  return true;
+}
+
 function installAndroidBackHandler(){
   try {
     history.replaceState({ appBase:true }, '', location.href);
@@ -615,20 +630,13 @@ function installAndroidBackHandler(){
       return;
     }
 
-    if (String(state.query || '').trim().length > 0) {
-      el.searchInput.value = '';
-      state.query = '';
-      state.filter = 'all';
-      el.chips.forEach(c => c.classList.toggle('active', c.dataset.filter === 'all'));
-      el.searchInput.blur();
-      renderResults();
-      state.exitArmUntil = 0;
+    if (clearSearchByBack()) {
       try { history.pushState({ appGuard:true }, '', location.href); } catch(e) {}
       return;
     }
 
     if (now < state.exitArmUntil) {
-      // 두 번째 뒤로가기: 더 이상 가드 상태를 만들지 않고 브라우저/앱의 기본 종료 동작 허용
+      // 검색어를 지운 직후이거나 종료 안내 직후의 다음 뒤로가기 → 종료
       try { history.back(); } catch(e) {}
       return;
     }
@@ -637,6 +645,8 @@ function installAndroidBackHandler(){
     showToast('뒤로가기를 한 번 더 누르면 앱이 종료됩니다');
     try { history.pushState({ appGuard:true }, '', location.href); } catch(e) {}
   });
+
+
 }
 
 function loadAtStartup(){
