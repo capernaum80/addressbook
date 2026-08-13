@@ -48,7 +48,7 @@
       -webkit-touch-callout:default;
     }
 
-    .app{max-width:520px; margin:0 auto; min-height:100vh; background:linear-gradient(180deg,#f9fbff 0,#f4f7fb 42%,#f3f6fa 100%); position:relative; padding-bottom:72px;}
+    .app{max-width:520px; margin:0 auto; min-height:100vh; background:linear-gradient(180deg,#f9fbff 0,#f4f7fb 42%,#f3f6fa 100%); position:relative; padding-bottom:72px; overscroll-behavior-y:none;}
     .top{padding:calc(18px + var(--safe-top)) 16px 10px; position:sticky; top:0; z-index:10; backdrop-filter: blur(12px); background:rgba(249,251,255,.88); border-bottom:1px solid rgba(229,231,235,.6)}
     .titlebar{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
     .title{font-size:24px; font-weight:800; letter-spacing:-.04em}
@@ -229,6 +229,7 @@ const state = {
   currentView: 'search',
   localMeta: null,
   remoteMeta: null,
+  exitArmUntil: 0,
 };
 
 const el = {
@@ -585,6 +586,59 @@ async function checkForUpdates(){
   }
 }
 
+
+/* Android 뒤로가기 버튼 처리
+   - 상세창이 열려 있으면 상세창 닫기
+   - 주소록 업데이트 화면이면 검색 화면으로 돌아가기
+   - 검색어가 있으면 검색어 지우고 첫 화면으로 돌아가기
+   - 첫 화면에서는 한 번 더 누르면 종료되도록 보호 */
+function installAndroidBackHandler(){
+  try {
+    history.replaceState({ appBase:true }, '', location.href);
+    history.pushState({ appGuard:true }, '', location.href);
+  } catch(e) {}
+
+  window.addEventListener('popstate', () => {
+    const now = Date.now();
+
+    if (el.sheetBackdrop.classList.contains('show')) {
+      closeSheet();
+      state.exitArmUntil = 0;
+      try { history.pushState({ appGuard:true }, '', location.href); } catch(e) {}
+      return;
+    }
+
+    if (state.currentView === 'update') {
+      showSearchView();
+      state.exitArmUntil = 0;
+      try { history.pushState({ appGuard:true }, '', location.href); } catch(e) {}
+      return;
+    }
+
+    if (String(state.query || '').trim().length > 0) {
+      el.searchInput.value = '';
+      state.query = '';
+      state.filter = 'all';
+      el.chips.forEach(c => c.classList.toggle('active', c.dataset.filter === 'all'));
+      el.searchInput.blur();
+      renderResults();
+      state.exitArmUntil = 0;
+      try { history.pushState({ appGuard:true }, '', location.href); } catch(e) {}
+      return;
+    }
+
+    if (now < state.exitArmUntil) {
+      // 두 번째 뒤로가기: 더 이상 가드 상태를 만들지 않고 브라우저/앱의 기본 종료 동작 허용
+      try { history.back(); } catch(e) {}
+      return;
+    }
+
+    state.exitArmUntil = now + 1800;
+    showToast('뒤로가기를 한 번 더 누르면 앱이 종료됩니다');
+    try { history.pushState({ appGuard:true }, '', location.href); } catch(e) {}
+  });
+}
+
 function loadAtStartup(){
   const local = loadLocal();
   state.records = hydrateRecords(local.records || []);
@@ -605,25 +659,9 @@ document.addEventListener('contextmenu', e => {
   }
 });
 
-/* Android Chrome의 화면 아래로 당겨 새로고침(Pull-to-refresh) 방지 */
-let pullStartY = 0;
-document.addEventListener('touchstart', e => {
-  if (e.touches && e.touches.length === 1) {
-    pullStartY = e.touches[0].clientY;
-  }
-}, {passive:true});
-
-document.addEventListener('touchmove', e => {
-  if (!e.touches || e.touches.length !== 1) return;
-  const currentY = e.touches[0].clientY;
-  const pullingDown = currentY > pullStartY;
-  const atTop = (window.scrollY || document.documentElement.scrollTop || 0) <= 0;
-
-  if (atTop && pullingDown) {
-    e.preventDefault();
-  }
-}, {passive:false});
-
+/* Android Chrome의 Pull-to-refresh는 CSS overscroll-behavior로 차단합니다.
+   touchmove에서 preventDefault()를 사용하지 않아 키보드 표시 중에도
+   검색 결과가 적을 때 위/아래 스크롤이 자연스럽게 동작합니다. */
 el.searchInput.addEventListener('focus', () => {
   syncUpdateBarVisibility();
 });
@@ -663,6 +701,7 @@ document.addEventListener('visibilitychange', () => {
     loadAtStartup();
   }
 });
+installAndroidBackHandler();
 loadAtStartup();
 </script>
 </body>
