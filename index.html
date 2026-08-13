@@ -17,11 +17,9 @@
   <style>
     :root{
       --blue:#1777ff;
-      --blue2:#2a8cff;
       --bg:#f5f7fb;
       --text:#111827;
       --muted:#6b7280;
-      --line:#e5e7eb;
       --shadow:0 8px 20px rgba(15,23,42,.07);
       --safe-top:env(safe-area-inset-top);
       --safe-bottom:env(safe-area-inset-bottom);
@@ -203,7 +201,6 @@
     }
     .tag.plant{background:#eff6ff;color:#1d4ed8}
     .tag.pump{background:#edfdf3;color:#0f9f57}
-
     .go{
       width:46px;
       height:46px;
@@ -227,7 +224,6 @@
       pointer-events:none;
     }
     .bottom-nav.hidden{display:none}
-
     .bottom-inner{
       width:min(520px,100%);
       padding-bottom:var(--safe-bottom);
@@ -250,7 +246,7 @@
       cursor:pointer;
       -webkit-tap-highlight-color:transparent;
     }
-    .update-main-btn .icon{font-size:27px;line-height:1}
+    .update-main-btn .icon{font-size:27px}
     .update-main-btn:active{background:rgba(0,0,0,.08)}
 
     .status-card,.update-card{
@@ -280,15 +276,9 @@
       font-size:16px;
     }
     .row:first-child{border-top:0}
-
     .update-actions{display:flex;gap:10px;margin-top:18px}
     .update-actions button{
-      flex:1;
-      height:56px;
-      border-radius:16px;
-      font-size:20px;
-      font-weight:800;
-      cursor:pointer;
+      flex:1;height:56px;border-radius:16px;font-size:20px;font-weight:800;cursor:pointer
     }
     .btn-outline{border:2px solid #94a3b8;background:#fff;color:#334155}
     .btn-primary{border:0;background:linear-gradient(180deg,#2a8cff,#176dff);color:#fff}
@@ -378,18 +368,9 @@
 
       <div class="search-box">
         <span class="search-icon">⌕</span>
-        <input
-          id="searchInput"
-          class="search-input"
-          type="search"
-          inputmode="search"
-          enterkeyhint="search"
-          placeholder="어디로 갈까요?"
-          autocomplete="off"
-          autocorrect="off"
-          autocapitalize="none"
-          spellcheck="false"
-        >
+        <input id="searchInput" class="search-input" type="search"
+          inputmode="search" enterkeyhint="search" placeholder="어디로 갈까요?"
+          autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
         <button id="clearBtn" class="clear-btn" type="button" aria-label="검색어 지우기">×</button>
       </div>
 
@@ -412,8 +393,7 @@
   <div class="bottom-nav" id="bottomNav">
     <div class="bottom-inner">
       <button id="updateMainBtn" class="update-main-btn" type="button">
-        <span class="icon">↻</span>
-        <span>주소록 업데이트</span>
+        <span class="icon">↻</span><span>주소록 업데이트</span>
       </button>
     </div>
   </div>
@@ -433,41 +413,47 @@
 
 <script>
 'use strict';
-// BUILD: 2026-08-14-clean-v2-keyboard-v-preserve
+// BUILD: 2026-08-14-clean-v4-sheet-back-only
 
 /*
-  하수처리장 TMAP - 새로 설계한 단순 상태 구조
+  새 구조의 핵심
 
-  브라우저 history는 딱 3단계만 사용합니다.
-    base   : 검색어가 없는 메인 화면
-    search : 검색어가 있는 검색 결과 화면
-    sheet  : 목적지 상세/주소복사/TMAP 화면
-    update : 주소록 업데이트 화면
+  브라우저 history는 역할을 분리합니다.
 
-  Android 키보드의 V 버튼은 브라우저/OS 고유 동작에 맡깁니다.
-  touchmove/popstate를 이용해 키보드 닫기를 가로채지 않습니다.
+  base     : 앱 실행 직후의 실제 메인 상태
+  guard    : 앱 내부 뒤로가기 제어용 보호 상태
+  keyboard : 검색창 포커스/키보드가 올라온 상태
+  sheet    : 목적지 상세 화면
+  update   : 주소록 업데이트 화면
+
+  검색어 자체는 history 상태로 만들지 않습니다.
+
+  따라서:
+  - 키보드가 떠 있을 때 V(키보드 내리기) = keyboard -> guard
+    검색어는 절대 건드리지 않습니다.
+  - 키보드가 내려간 뒤 < = guard -> base
+    검색어가 있으면 검색어만 지우고 guard를 다시 만듭니다.
+  - 검색어가 없는 상태에서 < = guard -> base
+    앱의 실제 이전 화면으로 빠져나가도록 한 번 더 back 합니다.
 */
 
-const PROXY_URL = 'https://script.google.com/macros/s/AKfycbxehvKiQkegGrCZbraOnHYdy15yWmNHHa4ulnGB4MFzBOHbmn8AeeOUU-jOjXBoCSc/exec';
-const STORAGE_KEY = 'facility_addressbook_cache_v1';
-const STORAGE_META_KEY = 'facility_addressbook_meta_v1';
-const REQUEST_TIMEOUT = 20000;
-const RETRY_DELAYS = [800,1500];
+const PROXY_URL='https://script.google.com/macros/s/AKfycbxehvKiQkegGrCZbraOnHYdy15yWmNHHa4ulnGB4MFzBOHbmn8AeeOUU-jOjXBoCSc/exec';
+const STORAGE_KEY='facility_addressbook_cache_v1';
+const STORAGE_META_KEY='facility_addressbook_meta_v1';
+const REQUEST_TIMEOUT=20000;
+const RETRY_DELAYS=[800,1500];
 
-const state = {
+const state={
   records:[],
   filter:'all',
   query:'',
   selected:null,
   localMeta:null,
   remoteMeta:null,
-  view:'base',
-  pendingRefocus:false,
-  keyboardSession:false,
-  keyboardBlurAt:0
+  leavingApp:false
 };
 
-const el = {
+const el={
   app:document.getElementById('app'),
   versionText:document.getElementById('versionText'),
   searchInput:document.getElementById('searchInput'),
@@ -489,18 +475,21 @@ const el = {
   toast:document.getElementById('toast')
 };
 
-function historyView(){
-  return history.state && history.state.view ? history.state.view : 'base';
+function currentLayer(){
+  return history.state && history.state.layer ? history.state.layer : '';
 }
 
-function setBaseHistory(){
-  try{ history.replaceState({view:'base'},'',location.href); }catch(_){}
-  state.view='base';
+function installBaseHistory(){
+  try{
+    history.replaceState({layer:'base'},'',location.href);
+    history.pushState({layer:'guard'},'',location.href);
+  }catch(_){}
 }
 
-function pushView(view){
-  try{ history.pushState({view},'',location.href); }catch(_){}
-  state.view=view;
+function ensureGuard(){
+  if(currentLayer()!=='guard'){
+    try{history.pushState({layer:'guard'},'',location.href)}catch(_){}
+  }
 }
 
 function normalizeText(value){
@@ -512,14 +501,14 @@ function normalizeText(value){
 }
 
 function groupType(category,name){
-  return /처리장/.test(`${category||''} ${name||''}`) ? 'plant' : 'pump';
+  return /처리장/.test(`${category||''} ${name||''}`)?'plant':'pump';
 }
 
 function buildFullAddress(address){
   const text=String(address||'').trim();
-  if(!text) return '';
-  if(/^충청남도\s*부여군/.test(text)) return text;
-  return '충청남도 부여군 ' + text;
+  if(!text)return '';
+  if(/^충청남도\s*부여군/.test(text))return text;
+  return '충청남도 부여군 '+text;
 }
 
 function escapeHtml(str){
@@ -529,15 +518,10 @@ function escapeHtml(str){
 }
 
 function formatTime(value){
-  if(!value) return '';
+  if(!value)return '';
   const d=new Date(value);
-  if(isNaN(d)) return String(value);
-  const yyyy=d.getFullYear();
-  const mm=String(d.getMonth()+1).padStart(2,'0');
-  const dd=String(d.getDate()).padStart(2,'0');
-  const hh=String(d.getHours()).padStart(2,'0');
-  const mi=String(d.getMinutes()).padStart(2,'0');
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+  if(isNaN(d))return String(value);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
 function showToast(message){
@@ -553,7 +537,7 @@ function setVersionText(meta,prefix='저장된 주소록'){
     return;
   }
   const when=formatTime(meta.updated||meta.version);
-  const total=meta.total ? ` · ${meta.total}개` : '';
+  const total=meta.total?` · ${meta.total}개`:'';
   el.versionText.textContent=`${prefix}: ${when}${total}`;
 }
 
@@ -564,26 +548,24 @@ function saveLocal(records,meta){
 
 function loadLocal(){
   try{
-    return {
+    return{
       records:JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'),
       meta:JSON.parse(localStorage.getItem(STORAGE_META_KEY)||'null')
     };
   }catch(_){
-    return {records:[],meta:null};
+    return{records:[],meta:null};
   }
 }
 
 function hydrateRecords(records){
-  return (records||[]).map((r,idx)=>{
+  return(records||[]).map((r,idx)=>{
     const category=r.category||'';
     const name=String(r.name||'').trim();
     const address=String(r.address||'').trim();
     const type=r.type||groupType(category,name);
-    return {
+    return{
       id:r.id||idx+1,
-      category,
-      name,
-      address,
+      category,name,address,
       fullAddress:buildFullAddress(address),
       type,
       searchable:normalizeText(`${category} ${name} ${address} ${r.aliases||''}`)
@@ -592,11 +574,11 @@ function hydrateRecords(records){
 }
 
 function syncBottomBar(){
-  const searching =
+  const searching=
     document.activeElement===el.searchInput ||
     String(state.query||'').trim().length>0 ||
-    state.view==='sheet' ||
-    state.view==='update';
+    el.sheetBackdrop.classList.contains('show') ||
+    el.updateView.style.display==='block';
 
   el.bottomNav.classList.toggle('hidden',searching);
   el.app.classList.toggle('searching',searching);
@@ -635,12 +617,11 @@ function renderResults(){
 
   const q=normalizeText(raw);
   const filtered=state.records.filter(r=>{
-    if(state.filter!=='all'&&r.type!==state.filter) return false;
+    if(state.filter!=='all'&&r.type!==state.filter)return false;
     return r.searchable.includes(q);
   });
 
   el.searchState.innerHTML='';
-
   if(!filtered.length){
     renderNoResult();
     return;
@@ -648,7 +629,6 @@ function renderResults(){
 
   el.resultHeader.style.display='block';
   el.resultHeader.textContent=`검색 결과 ${filtered.length}개`;
-
   el.resultList.innerHTML=filtered.map(item=>`
     <button class="item" type="button" data-id="${item.id}">
       <div class="item-main">
@@ -663,9 +643,23 @@ function renderResults(){
   el.resultList.querySelectorAll('.item').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const found=state.records.find(r=>String(r.id)===btn.dataset.id);
-      if(found) openSheet(found);
+      if(found)openSheet(found);
     });
   });
+}
+
+function clearSearch({focus=false}={}){
+  el.searchInput.value='';
+  state.query='';
+  resetFilter();
+  renderResults();
+  if(focus)setTimeout(()=>el.searchInput.focus(),0);
+  else el.searchInput.blur();
+}
+
+function resetFilter(){
+  state.filter='all';
+  el.chips.forEach(c=>c.classList.toggle('active',c.dataset.filter==='all'));
 }
 
 function showSearchSurface(){
@@ -673,35 +667,59 @@ function showSearchSurface(){
   el.updateView.style.display='none';
 }
 
+function openKeyboardLayer(){
+  if(currentLayer()==='guard'){
+    try{history.pushState({layer:'keyboard'},'',location.href)}catch(_){}
+  }
+}
+
+function closeKeyboardLikeSearchKey(){
+  /*
+    키보드의 돋보기(검색) 키를 누른 것과 같은 결과:
+    - 입력값 유지
+    - 키보드만 닫기
+    - history는 keyboard -> guard로 되돌림
+  */
+  el.searchInput.blur();
+
+  if(currentLayer()==='keyboard'){
+    history.back();
+  }else{
+    ensureGuard();
+  }
+}
+
 function openSheet(item){
-  state.keyboardSession=false;
+  // 상세창을 열기 전 키보드가 떠 있으면 먼저 키보드 상태를 정리
+  if(currentLayer()==='keyboard'){
+    el.searchInput.blur();
+    history.back();
+    setTimeout(()=>openSheet(item),0);
+    return;
+  }
+
   state.selected=item;
   el.sheetTitle.textContent=item.name;
   el.sheetAddress.textContent=item.fullAddress;
   el.sheetBackdrop.classList.add('show');
 
-  if(historyView()!=='sheet') pushView('sheet');
-  state.view='sheet';
+  try{history.pushState({layer:'sheet'},'',location.href)}catch(_){}
   syncBottomBar();
 }
 
 function closeSheetVisual(){
   el.sheetBackdrop.classList.remove('show');
   state.selected=null;
+  syncBottomBar();
 }
 
 function closeSheetByUser(){
-  if(historyView()==='sheet'){
-    history.back();
-  }else{
-    closeSheetVisual();
-    state.view=String(state.query||'').trim()?'search':'base';
-    syncBottomBar();
-  }
+  if(currentLayer()==='sheet')history.back();
+  else closeSheetVisual();
 }
 
 async function copySelectedAddress(){
-  if(!state.selected) return;
+  if(!state.selected)return;
   try{
     await navigator.clipboard.writeText(state.selected.fullAddress);
     showToast('주소를 복사했습니다');
@@ -711,84 +729,13 @@ async function copySelectedAddress(){
 }
 
 async function openTmap(){
-  if(!state.selected) return;
-
+  if(!state.selected)return;
   const address=state.selected.fullAddress;
-  try{
-    await navigator.clipboard.writeText(address);
-  }catch(_){}
-
-  const q=encodeURIComponent(address);
-  window.location.href=`tmap://search?name=${q}`;
-}
-
-function clearQueryVisual({refocus=false}={}){
-  el.searchInput.value='';
-  state.query='';
-  renderResults();
-  if(refocus){
-    setTimeout(()=>el.searchInput.focus(),0);
-  }else{
-    el.searchInput.blur();
-  }
-}
-
-function resetFilter(){
-  state.filter='all';
-  el.chips.forEach(c=>c.classList.toggle('active',c.dataset.filter==='all'));
-}
-
-function handleBackTarget(target){
-  /*
-    popstate는 "뒤로간 뒤 도착한 상태"를 알려줍니다.
-    따라서 sheet -> search, search -> base 순서가 자연스럽게 보장됩니다.
-  */
-  if(target==='search'){
-    closeSheetVisual();
-    showSearchSurface();
-    state.view='search';
-    syncBottomBar();
-    return;
-  }
-
-  if(target==='base'){
-    closeSheetVisual();
-    showSearchSurface();
-    state.view='base';
-    clearQueryVisual({refocus:false});
-    resetFilter();
-    syncBottomBar();
-
-    if(state.pendingRefocus){
-      state.pendingRefocus=false;
-      setTimeout(()=>el.searchInput.focus(),0);
-    }
-    return;
-  }
-
-  if(target==='update'){
-    state.view='update';
-    syncBottomBar();
-  }
-}
-
-function beginSearchHistoryIfNeeded(){
-  if(historyView()==='base' && String(state.query||'').trim()){
-    pushView('search');
-  }
-}
-
-function requestClearFromButton(){
-  if(String(state.query||'').trim() && historyView()==='search'){
-    state.pendingRefocus=true;
-    history.back();
-  }else{
-    clearQueryVisual({refocus:true});
-  }
+  try{await navigator.clipboard.writeText(address)}catch(_){}
+  window.location.href=`tmap://search?name=${encodeURIComponent(address)}`;
 }
 
 function showUpdateLoading(){
-  state.view='update';
   closeSheetVisual();
   el.searchView.style.display='none';
   el.updateView.style.display='block';
@@ -818,7 +765,6 @@ function renderUpdateResult(meta,hasUpdate){
         <button class="btn-primary" id="runUpdateBtn" type="button">${hasUpdate?'업데이트':'다시받기'}</button>
       </div>
     </div>`;
-
   document.getElementById('cancelUpdateBtn').addEventListener('click',closeUpdateByUser);
   document.getElementById('runUpdateBtn').addEventListener('click',bootstrapFromServer);
 }
@@ -834,17 +780,14 @@ function renderUpdateError(message){
         <button class="btn-primary" id="retryUpdateBtn" type="button">다시 시도</button>
       </div>
     </div>`;
-
   document.getElementById('backUpdateBtn').addEventListener('click',closeUpdateByUser);
   document.getElementById('retryUpdateBtn').addEventListener('click',checkForUpdates);
 }
 
 function closeUpdateByUser(){
-  if(historyView()==='update'){
-    history.back();
-  }else{
+  if(currentLayer()==='update')history.back();
+  else{
     showSearchSurface();
-    state.view=String(state.query||'').trim()?'search':'base';
     syncBottomBar();
   }
 }
@@ -856,7 +799,7 @@ function jsonp(params){
     let finished=false;
 
     const cleanup=()=>{
-      if(finished) return;
+      if(finished)return;
       finished=true;
       clearTimeout(timer);
       try{delete window[callback]}catch(_){}
@@ -889,13 +832,11 @@ async function request(params){
   for(let i=0;i<3;i++){
     try{
       const res=await jsonp(params);
-      if(!res.ok) throw new Error(res.error||'요청에 실패했습니다.');
+      if(!res.ok)throw new Error(res.error||'요청에 실패했습니다.');
       return res;
     }catch(err){
       lastError=err;
-      if(i<2){
-        await new Promise(r=>setTimeout(r,RETRY_DELAYS[Math.min(i,RETRY_DELAYS.length-1)]));
-      }
+      if(i<2)await new Promise(r=>setTimeout(r,RETRY_DELAYS[Math.min(i,RETRY_DELAYS.length-1)]));
     }
   }
   throw lastError;
@@ -911,14 +852,11 @@ async function bootstrapFromServer(){
     setVersionText(state.localMeta);
     showToast('주소록을 업데이트했습니다');
 
-    // 업데이트 화면을 닫을 때는 history를 통해 base로 복귀
-    if(historyView()==='update'){
-      history.back();
-    }else{
+    if(currentLayer()==='update')history.back();
+    else{
       showSearchSurface();
-      state.view='base';
-      syncBottomBar();
       renderResults();
+      syncBottomBar();
     }
   }catch(err){
     renderUpdateError(err.message||'주소록을 받아오지 못했습니다.');
@@ -926,25 +864,130 @@ async function bootstrapFromServer(){
 }
 
 async function checkForUpdates(){
-  if(historyView()!=='update') pushView('update');
+  if(currentLayer()==='keyboard'){
+    el.searchInput.blur();
+    history.back();
+    setTimeout(checkForUpdates,0);
+    return;
+  }
+
+  try{history.pushState({layer:'update'},'',location.href)}catch(_){}
   showUpdateLoading();
 
   try{
     const res=await request({action:'meta'});
     state.remoteMeta={version:res.version,updated:res.updated,total:res.total};
-
     const localVersion=state.localMeta?.version||'';
     const remoteVersion=state.remoteMeta.version||'';
-    const hasUpdate=!localVersion || String(localVersion)!==String(remoteVersion);
-
+    const hasUpdate=!localVersion||String(localVersion)!==String(remoteVersion);
     renderUpdateResult(state.remoteMeta,hasUpdate);
   }catch(err){
     renderUpdateError(err.message||'업데이트 정보를 가져오지 못했습니다.');
   }
 }
 
+/* 일반 텍스트 길게 누르기/Chrome 검색 메뉴 방지 */
+document.addEventListener('contextmenu',e=>{
+  if(!e.target.closest('input,textarea'))e.preventDefault();
+},true);
+document.addEventListener('selectstart',e=>{
+  if(!e.target.closest('input,textarea'))e.preventDefault();
+},true);
+document.addEventListener('dragstart',e=>{
+  if(!e.target.closest('input,textarea'))e.preventDefault();
+},true);
+
+/*
+  시스템 뒤로가기 핵심 처리
+*/
+window.addEventListener('popstate',e=>{
+  const layer=e.state?.layer||'';
+
+  if(state.leavingApp)return;
+
+  // sheet -> guard : 상세창에서의 뒤로가기는 무조건 '이전 검색결과'로만 복귀
+  // 검색어, 검색결과, 선택한 필터는 그대로 유지하고 앱 종료는 절대 하지 않습니다.
+  if(el.sheetBackdrop.classList.contains('show')){
+    closeSheetVisual();
+    showSearchSurface();
+    ensureGuard();
+    renderResults();
+    syncBottomBar();
+    return;
+  }
+
+  // update -> guard : 업데이트 화면만 닫기
+  if(el.updateView.style.display==='block'){
+    showSearchSurface();
+    ensureGuard();
+    syncBottomBar();
+    return;
+  }
+
+  // keyboard -> guard : V 또는 키보드 돋보기 = 키보드만 닫기, 검색어 유지
+  if(layer==='guard' && document.activeElement!==el.searchInput){
+    // 검색어는 절대 건드리지 않음
+    syncBottomBar();
+    return;
+  }
+
+  // guard -> base : 실제 < 뒤로가기
+  if(layer==='base'){
+    const hasQuery=String(state.query||'').trim().length>0;
+
+    if(hasQuery){
+      // 커서 위치와 상관없이 글자가 있으면 무조건 글자부터 삭제
+      clearSearch({focus:false});
+      ensureGuard();
+      return;
+    }
+
+    // 글자가 없으면 앱을 빠져나감
+    state.leavingApp=true;
+    history.back();
+  }
+});
+
+el.searchInput.addEventListener('focus',()=>{
+  openKeyboardLayer();
+  syncBottomBar();
+});
+
+el.searchInput.addEventListener('blur',()=>setTimeout(syncBottomBar,0));
+
+el.searchInput.addEventListener('input',e=>{
+  state.query=e.target.value;
+  renderResults();
+});
+
+el.searchInput.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    e.preventDefault();
+    closeKeyboardLikeSearchKey();
+  }
+});
+
+el.clearBtn.addEventListener('click',()=>{
+  clearSearch({focus:true});
+});
+
+el.chips.forEach(chip=>chip.addEventListener('click',()=>{
+  el.chips.forEach(c=>c.classList.remove('active'));
+  chip.classList.add('active');
+  state.filter=chip.dataset.filter;
+  renderResults();
+}));
+
+el.updateMainBtn.addEventListener('click',checkForUpdates);
+el.sheetBackdrop.addEventListener('click',e=>{
+  if(e.target===el.sheetBackdrop)closeSheetByUser();
+});
+el.closeSheetBtn.addEventListener('click',closeSheetByUser);
+el.copyBtn.addEventListener('click',copySelectedAddress);
+el.tmapBtn.addEventListener('click',openTmap);
+
 function loadAtStartup(){
-  setBaseHistory();
+  installBaseHistory();
 
   const local=loadLocal();
   state.records=hydrateRecords(local.records||[]);
@@ -956,136 +999,12 @@ function loadAtStartup(){
   syncBottomBar();
 
   if(!state.records.length){
-    // 최초 설치 시에만 서버에서 주소록을 자동으로 받습니다.
-    pushView('update');
+    try{history.pushState({layer:'update'},'',location.href)}catch(_){}
     bootstrapFromServer();
   }
 }
 
-/* 일반 텍스트 길게 누르기/Chrome 검색 메뉴 방지.
-   검색 입력창은 정상 편집을 위해 예외입니다. */
-document.addEventListener('contextmenu',e=>{
-  if(!e.target.closest('input,textarea')) e.preventDefault();
-},true);
-
-document.addEventListener('selectstart',e=>{
-  if(!e.target.closest('input,textarea')) e.preventDefault();
-},true);
-
-document.addEventListener('dragstart',e=>{
-  if(!e.target.closest('input,textarea')) e.preventDefault();
-},true);
-
-/* 시스템 뒤로가기 */
-window.addEventListener('popstate',e=>{
-  const target=e.state?.view;
-
-  // 앱보다 이전의 브라우저 기록으로 이동하는 경우에는 가로채지 않습니다.
-  if(!target) return;
-
-  /*
-    Android 키보드가 떠 있을 때 하단의 V를 누르면,
-    일부 Chrome/기기에서는 '키보드 닫기'와 함께 popstate까지 발생합니다.
-    이 신호를 일반 뒤로가기로 처리하면 검색어가 지워지는 문제가 생깁니다.
-
-    그래서 검색창이 방금까지 키보드 입력 상태였던 경우에는
-    이번 popstate를 '키보드만 내리기'로 해석합니다.
-    검색어는 그대로 유지하고 search history를 다시 한 단계 확보합니다.
-  */
-  const hasQuery=String(state.query||'').trim().length>0;
-  const justBlurred=Date.now()-state.keyboardBlurAt < 1200;
-
-  if(hasQuery && state.keyboardSession && (document.activeElement===el.searchInput || justBlurred)){
-    state.keyboardSession=false;
-
-    // V 동작으로 search -> base까지 빠져버렸다면
-    // 검색어를 유지한 채 search 상태를 다시 쌓아 다음 <가 검색어 삭제가 되게 합니다.
-    if(target==='base'){
-      try{
-        history.pushState({view:'search'},'',location.href);
-      }catch(_){}
-      state.view='search';
-      showSearchSurface();
-      renderResults();
-      syncBottomBar();
-      return;
-    }
-
-    // target이 search면 그대로 검색 화면을 유지합니다.
-    if(target==='search'){
-      state.view='search';
-      showSearchSurface();
-      renderResults();
-      syncBottomBar();
-      return;
-    }
-  }
-
-  state.keyboardSession=false;
-  handleBackTarget(target);
-});
-
-el.searchInput.addEventListener('focus',()=>{
-  state.keyboardSession=true;
-  state.keyboardBlurAt=0;
-  syncBottomBar();
-});
-
-el.searchInput.addEventListener('blur',()=>{
-  state.keyboardBlurAt=Date.now();
-  setTimeout(syncBottomBar,0);
-
-  // 일반 화면 터치로 키보드를 내린 경우에는 잠시 뒤 세션을 종료합니다.
-  // V 버튼에 의한 popstate가 먼저/나중 어느 순서로 와도 1.2초 동안은 판별 가능합니다.
-  setTimeout(()=>{
-    if(Date.now()-state.keyboardBlurAt >= 1200){
-      state.keyboardSession=false;
-    }
-  },1250);
-});
-
-el.searchInput.addEventListener('input',e=>{
-  const before=String(state.query||'').trim();
-  state.query=e.target.value;
-  const after=String(state.query||'').trim();
-
-  if(!before && after){
-    beginSearchHistoryIfNeeded();
-  }
-
-  renderResults();
-});
-
-el.searchInput.addEventListener('keydown',e=>{
-  if(e.key==='Enter'){
-    e.preventDefault();
-    el.searchInput.blur();
-  }
-});
-
-el.clearBtn.addEventListener('click',requestClearFromButton);
-
-el.chips.forEach(chip=>chip.addEventListener('click',()=>{
-  el.chips.forEach(c=>c.classList.remove('active'));
-  chip.classList.add('active');
-  state.filter=chip.dataset.filter;
-  renderResults();
-}));
-
-el.updateMainBtn.addEventListener('click',checkForUpdates);
-
-el.sheetBackdrop.addEventListener('click',e=>{
-  if(e.target===el.sheetBackdrop) closeSheetByUser();
-});
-el.closeSheetBtn.addEventListener('click',closeSheetByUser);
-el.copyBtn.addEventListener('click',copySelectedAddress);
-el.tmapBtn.addEventListener('click',openTmap);
-
-/*
-  예전 홈화면 앱이 오래된 파일을 계속 잡는 문제를 줄이기 위해
-  설치된 서비스워커가 있다면 업데이트 검사를 요청합니다.
-  앱의 localStorage 주소록 캐시는 유지합니다.
-*/
+/* 오래된 홈화면 앱 캐시 방지 보조 */
 if('serviceWorker' in navigator){
   navigator.serviceWorker.getRegistrations()
     .then(regs=>regs.forEach(reg=>reg.update().catch(()=>{})))
