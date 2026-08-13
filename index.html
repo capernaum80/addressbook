@@ -27,8 +27,27 @@
       --safe-bottom: env(safe-area-inset-bottom);
     }
     *{box-sizing:border-box}
-    html,body{margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;}
+
+    /* Chrome의 일반 텍스트 선택/길게누르기 검색 방지 */
+    html,body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+      overscroll-behavior-y:none;
+      -webkit-user-select:none;
+      user-select:none;
+      -webkit-touch-callout:none;
+    }
     body{min-height:100vh;}
+
+    /* 실제로 글자를 입력해야 하는 입력창만 선택/편집 허용 */
+    input, textarea{
+      -webkit-user-select:text;
+      user-select:text;
+      -webkit-touch-callout:default;
+    }
+
     .app{max-width:520px; margin:0 auto; min-height:100vh; background:linear-gradient(180deg,#f9fbff 0,#f4f7fb 42%,#f3f6fa 100%); position:relative; padding-bottom:72px;}
     .top{padding:calc(18px + var(--safe-top)) 16px 10px; position:sticky; top:0; z-index:10; backdrop-filter: blur(12px); background:rgba(249,251,255,.88); border-bottom:1px solid rgba(229,231,235,.6)}
     .titlebar{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
@@ -62,6 +81,7 @@
     .tag.plant{background:#eff6ff; color:#1d4ed8}
     .tag.pump{background:#edfdf3; color:#0f9f57}
     .go{width:46px; height:46px; border-radius:50%; border:none; background:linear-gradient(180deg,#2a8cff,#176dff); color:#fff; font-size:22px; box-shadow:0 8px 16px rgba(23,119,255,.25); cursor:pointer}
+
     /* 하단 주소록 업데이트 영역: 떠 있는 버튼이 아니라 앱의 고정 하단 바처럼 구성 */
     .bottom-nav{
       position:fixed; left:0; right:0; bottom:0;
@@ -245,7 +265,7 @@ function normalizeText(value){
     .toLowerCase()
     .replace(/충청남도/g,'')
     .replace(/부여군/g,'')
-    .replace(/[\s\-_/.,()]/g,'');
+    .replace(/[\s\-_\/.,()]/g,'');
 }
 
 function groupType(category, name){
@@ -576,6 +596,33 @@ function loadAtStartup(){
     bootstrapFromServer();
   }
 }
+
+/* 일반 텍스트 길게 누르기/컨텍스트 메뉴 방지
+   검색 입력창은 정상 입력을 위해 예외 처리 */
+document.addEventListener('contextmenu', e => {
+  if (!e.target.closest('input, textarea')) {
+    e.preventDefault();
+  }
+});
+
+/* Android Chrome의 화면 아래로 당겨 새로고침(Pull-to-refresh) 방지 */
+let pullStartY = 0;
+document.addEventListener('touchstart', e => {
+  if (e.touches && e.touches.length === 1) {
+    pullStartY = e.touches[0].clientY;
+  }
+}, {passive:true});
+
+document.addEventListener('touchmove', e => {
+  if (!e.touches || e.touches.length !== 1) return;
+  const currentY = e.touches[0].clientY;
+  const pullingDown = currentY > pullStartY;
+  const atTop = (window.scrollY || document.documentElement.scrollTop || 0) <= 0;
+
+  if (atTop && pullingDown) {
+    e.preventDefault();
+  }
+}, {passive:false});
 
 el.searchInput.addEventListener('focus', () => {
   syncUpdateBarVisibility();
