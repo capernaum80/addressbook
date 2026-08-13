@@ -413,29 +413,29 @@
 
 <script>
 'use strict';
-// BUILD: 2026-08-14-clean-v6-v-as-search-key
+// BUILD: 2026-08-14-clean-v7-keyboard-hide-blur
 
 /*
-  하수처리장 TMAP - 뒤로가기/키보드 로직 전면 재작성
+  v7 핵심 원칙
 
-  원칙
-  1) 검색어가 있으면 실제 Android < 한 번 = 검색어 삭제
-  2) 검색어가 없으면 실제 Android < = 앱 종료
-  3) 키보드가 떠 있을 때 Android V가 발생하면
-     "키보드의 돋보기(검색/완료)를 누른 것"과 같은 처리:
-       - 검색어 유지
-       - 키보드 종료
-       - 앱 뒤로가기로 해석하지 않음
-  4) 키보드의 돋보기(Enter/Search)도 위와 완전히 같은 경로 사용
-  5) 상세창의 < = 검색결과로만 복귀
-  6) 커서 위치는 뒤로가기 판단에 사용하지 않음
+  1) Android의 V(키보드 내리기)는 웹페이지가 "검색키"로 바꿔 누르는 것이 아닙니다.
+     대신 키보드가 실제로 내려간 것을 visualViewport로 감지한 뒤
+     searchInput.blur()만 실행합니다.
+     => 글자는 그대로, 커서만 사라짐.
 
-  history 층
-    base     : 실제 메인 기준점
-    guard    : 앱 내부 뒤로가기 제어층
-    keyboard : 키보드 표시 중 보호층
-    sheet    : 주소복사/TMAP 상세창
-    update   : 주소록 업데이트 화면
+  2) 키보드의 돋보기/검색키(Enter)도 searchInput.blur()만 실행합니다.
+     => V와 돋보기의 최종 결과가 동일:
+        키보드 내려감 + 글자 유지 + 커서 없음.
+
+  3) 키보드가 내려간 상태에서 Android <:
+     검색어가 있으면 커서와 무관하게 검색어만 삭제.
+     검색어가 없으면 앱 종료.
+
+  4) 상세창에서 Android <:
+     검색 결과로만 복귀. 검색어/필터 유지.
+
+  키보드 상태를 history에 넣지 않습니다.
+  키보드 V와 실제 뒤로가기를 history로 구분하려 하지 않습니다.
 */
 
 const PROXY_URL = 'https://script.google.com/macros/s/AKfycbxehvKiQkegGrCZbraOnHYdy15yWmNHHa4ulnGB4MFzBOHbmn8AeeOUU-jOjXBoCSc/exec';
@@ -451,17 +451,7 @@ const state = {
   selected: null,
   localMeta: null,
   remoteMeta: null,
-
-  leavingApp: false,
-
-  // 키보드 상태
-  keyboardActive: false,
-  keyboardBlurAt: 0,
-  keyboardBlurTimer: null,
-  keyboardCommit: false,
-
-  // 키보드를 정리한 직후 실행할 동작(예: 결과 항목 열기)
-  afterKeyboard: null
+  leavingApp: false
 };
 
 const el = {
@@ -486,6 +476,10 @@ const el = {
   toast: document.getElementById('toast')
 };
 
+/* ---------------------------
+   history: 키보드는 관여하지 않음
+---------------------------- */
+
 function layer() {
   return history.state && history.state.layer ? history.state.layer : '';
 }
@@ -502,6 +496,10 @@ function ensureGuard() {
     try { history.pushState({ layer: 'guard' }, '', location.href); } catch (_) {}
   }
 }
+
+/* ---------------------------
+   공통
+---------------------------- */
 
 function normalizeText(value) {
   return String(value || '')
@@ -610,6 +608,15 @@ function syncBottomBar() {
   el.app.classList.toggle('searching', searching);
 }
 
+function resetFilter() {
+  state.filter = 'all';
+  el.chips.forEach(c => c.classList.toggle('active', c.dataset.filter === 'all'));
+}
+
+/* ---------------------------
+   검색 렌더링
+---------------------------- */
+
 function renderEmptyHero() {
   el.resultHeader.style.display = 'none';
   el.resultList.innerHTML = '';
@@ -671,14 +678,13 @@ function renderResults() {
   el.resultList.querySelectorAll('.item').forEach(btn => {
     btn.addEventListener('click', () => {
       const found = state.records.find(r => String(r.id) === btn.dataset.id);
-      if (found) runAfterKeyboard(() => openSheetNow(found));
+      if (found) {
+        // 결과를 눌렀다면 키보드/커서는 끝낸 뒤 상세창 열기
+        el.searchInput.blur();
+        openSheet(found);
+      }
     });
   });
-}
-
-function resetFilter() {
-  state.filter = 'all';
-  el.chips.forEach(c => c.classList.toggle('active', c.dataset.filter === 'all'));
 }
 
 function clearSearch() {
@@ -696,106 +702,76 @@ function showSearchSurface() {
 }
 
 /* ---------------------------
-   키보드 처리
+   키보드
 ---------------------------- */
 
-function cancelKeyboardBlurTimer() {
-  if (state.keyboardBlurTimer) {
-    clearTimeout(state.keyboardBlurTimer);
-    state.keyboardBlurTimer = null;
+/*
+  Android V를 웹에서 키보드 검색키로 "바꾸는" 것은 불가능합니다.
+  대신 V로 키보드가 실제로 닫힌 순간을 감지해서 blur()를 실행합니다.
+  이것이 사용자가 원하는 최종 상태를 정확히 만듭니다.
+
+  - 검색어 유지
+  - 키보드 닫힘
+  - 커서 없음
+*/
+
+const keyboard = {
+  fullHeight: window.visualViewport ? window.visualViewport.height : window.innerHeight,
+  wasOpen: false,
+  threshold: 110
+};
+
+function noteViewportHeight() {
+  const vv = window.visualViewport;
+  const current = vv ? vv.height : window.innerHeight;
+
+  // 입력창에 포커스가 없을 때의 큰 높이를 "키보드 닫힌 높이"로 계속 보정
+  if (document.activeElement !== el.searchInput && current > keyboard.fullHeight) {
+    keyboard.fullHeight = current;
   }
-}
 
-function markKeyboardFocused() {
-  cancelKeyboardBlurTimer();
-  state.keyboardActive = true;
-  state.keyboardBlurAt = 0;
+  const keyboardNowOpen = keyboard.fullHeight - current > keyboard.threshold;
 
-  if (layer() === 'guard') {
-    try { history.pushState({ layer: 'keyboard' }, '', location.href); } catch (_) {}
+  if (keyboardNowOpen) {
+    keyboard.wasOpen = true;
   }
 
-  syncBottomBar();
-}
-
-function markKeyboardBlurred() {
   /*
-    Android V는 기기에 따라
-    blur -> popstate 또는 popstate -> blur 순서가 다를 수 있습니다.
-
-    그래서 blur가 발생했다고 keyboardActive를 즉시 false로 만들지 않고
-    짧은 유예시간 동안 "방금 키보드가 열려 있었음" 상태를 유지합니다.
+    키보드가 열려 있었다가 닫혔는데 input focus가 아직 남아 있으면
+    바로 blur하여 커서를 제거합니다.
+    검색어는 절대 건드리지 않습니다.
   */
-  state.keyboardBlurAt = Date.now();
-  cancelKeyboardBlurTimer();
+  if (
+    keyboard.wasOpen &&
+    !keyboardNowOpen &&
+    document.activeElement === el.searchInput
+  ) {
+    keyboard.wasOpen = false;
+    setTimeout(() => {
+      if (document.activeElement === el.searchInput) {
+        el.searchInput.blur();
+      }
+      syncBottomBar();
+    }, 0);
+  }
 
-  state.keyboardBlurTimer = setTimeout(() => {
-    state.keyboardActive = false;
-    state.keyboardBlurTimer = null;
-  }, 900);
-
-  setTimeout(syncBottomBar, 0);
-}
-
-function keyboardWasJustOpen() {
-  return state.keyboardActive ||
-    (state.keyboardBlurAt && Date.now() - state.keyboardBlurAt < 900);
-}
-
-function finishKeyboardDismiss() {
-  cancelKeyboardBlurTimer();
-  state.keyboardActive = false;
-  state.keyboardBlurAt = 0;
-  state.keyboardCommit = false;
-
-  // Android V를 눌렀을 때도 "키보드 돋보기"와 같은 결과가 되도록
-  // 검색창 포커스를 명시적으로 해제합니다.
-  el.searchInput.blur();
-
-  ensureGuard();
-  renderResults();
-  syncBottomBar();
-
-  const next = state.afterKeyboard;
-  state.afterKeyboard = null;
-
-  if (typeof next === 'function') {
-    setTimeout(next, 0);
+  if (!keyboardNowOpen && document.activeElement !== el.searchInput) {
+    keyboard.wasOpen = false;
+    keyboard.fullHeight = Math.max(keyboard.fullHeight, current);
   }
 }
 
-function commitKeyboardLikeSearchKey() {
-  /*
-    실제 키보드의 돋보기(검색/완료) 버튼:
-    검색어 유지 + 키보드만 종료.
-
-    keyboard history를 한 단계 뒤로 보내고
-    popstate에서 finishKeyboardDismiss()로 마무리합니다.
-  */
-  el.searchInput.blur();
-
-  if (layer() === 'keyboard') {
-    state.keyboardCommit = true;
-    history.back();
-  } else {
-    finishKeyboardDismiss();
-  }
-}
-
-function runAfterKeyboard(fn) {
-  if (layer() === 'keyboard' || keyboardWasJustOpen()) {
-    state.afterKeyboard = fn;
-    commitKeyboardLikeSearchKey();
-  } else {
-    fn();
-  }
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', noteViewportHeight);
+} else {
+  window.addEventListener('resize', noteViewportHeight);
 }
 
 /* ---------------------------
    상세창
 ---------------------------- */
 
-function openSheetNow(item) {
+function openSheet(item) {
   state.selected = item;
   el.sheetTitle.textContent = item.name;
   el.sheetAddress.textContent = item.fullAddress;
@@ -914,7 +890,7 @@ function closeUpdateByUser() {
 }
 
 /* ---------------------------
-   서버 통신
+   서버
 ---------------------------- */
 
 function jsonp(params) {
@@ -1009,33 +985,31 @@ async function bootstrapFromServer() {
   }
 }
 
-function checkForUpdatesNow() {
+async function checkForUpdates() {
+  el.searchInput.blur();
+
   try { history.pushState({ layer: 'update' }, '', location.href); } catch (_) {}
   showUpdateLoading();
 
-  request({ action: 'meta' })
-    .then(res => {
-      state.remoteMeta = {
-        version: res.version,
-        updated: res.updated,
-        total: res.total
-      };
+  try {
+    const res = await request({ action: 'meta' });
 
-      const localVersion = state.localMeta?.version || '';
-      const remoteVersion = state.remoteMeta.version || '';
-      const hasUpdate =
-        !localVersion ||
-        String(localVersion) !== String(remoteVersion);
+    state.remoteMeta = {
+      version: res.version,
+      updated: res.updated,
+      total: res.total
+    };
 
-      renderUpdateResult(state.remoteMeta, hasUpdate);
-    })
-    .catch(err => {
-      renderUpdateError(err.message || '업데이트 정보를 가져오지 못했습니다.');
-    });
-}
+    const localVersion = state.localMeta?.version || '';
+    const remoteVersion = state.remoteMeta.version || '';
+    const hasUpdate =
+      !localVersion ||
+      String(localVersion) !== String(remoteVersion);
 
-function checkForUpdates() {
-  runAfterKeyboard(checkForUpdatesNow);
+    renderUpdateResult(state.remoteMeta, hasUpdate);
+  } catch (err) {
+    renderUpdateError(err.message || '업데이트 정보를 가져오지 못했습니다.');
+  }
 }
 
 /* ---------------------------
@@ -1047,14 +1021,14 @@ window.addEventListener('popstate', e => {
 
   const targetLayer = e.state?.layer || '';
 
-  // 1) 상세창의 뒤로가기 = 검색결과로만 복귀
+  // 상세창 < = 검색 결과로만 복귀
   if (el.sheetBackdrop.classList.contains('show')) {
     closeSheetVisual();
     ensureGuard();
     return;
   }
 
-  // 2) 업데이트 화면의 뒤로가기 = 검색 화면으로 복귀
+  // 업데이트 화면 < = 검색 화면으로 복귀
   if (el.updateView.style.display === 'block') {
     showSearchSurface();
     ensureGuard();
@@ -1064,22 +1038,9 @@ window.addEventListener('popstate', e => {
   }
 
   /*
-    3) 키보드가 떠 있던 상태에서 발생한 popstate
-       = Android V를 누른 것으로 처리
-       = 키보드 돋보기(검색/완료)와 동일한 경로
-
-       검색어는 절대 지우지 않습니다.
-  */
-  if (state.keyboardCommit || keyboardWasJustOpen()) {
-    finishKeyboardDismiss();
-    return;
-  }
-
-  /*
-    4) 여기부터는 실제 Android < 뒤로가기
-
-       커서/포커스는 전혀 보지 않습니다.
-       검색창에 글자가 있으면 무조건 먼저 글자만 지웁니다.
+    실제 < 뒤로가기:
+    커서 위치는 전혀 보지 않고,
+    검색창에 글자가 있으면 첫 번째 <에서 바로 글자만 삭제.
   */
   const hasQuery = String(state.query || '').trim().length > 0;
 
@@ -1089,7 +1050,7 @@ window.addEventListener('popstate', e => {
     return;
   }
 
-  // 5) 검색어 없는 메인에서 < = 앱 종료
+  // 검색어 없는 메인에서 < = 앱 종료
   if (targetLayer === 'base' || targetLayer === 'guard' || !targetLayer) {
     state.leavingApp = true;
     history.back();
@@ -1100,18 +1061,29 @@ window.addEventListener('popstate', e => {
    입력 이벤트
 ---------------------------- */
 
-el.searchInput.addEventListener('focus', markKeyboardFocused);
-el.searchInput.addEventListener('blur', markKeyboardBlurred);
+el.searchInput.addEventListener('focus', () => {
+  syncBottomBar();
+  noteViewportHeight();
+});
+
+el.searchInput.addEventListener('blur', () => {
+  setTimeout(syncBottomBar, 0);
+});
 
 el.searchInput.addEventListener('input', e => {
   state.query = e.target.value;
   renderResults();
 });
 
+/*
+  키보드 돋보기/검색키:
+  검색어 유지 + 키보드 종료 + 커서 제거
+*/
 el.searchInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     e.preventDefault();
-    commitKeyboardLikeSearchKey();
+    el.searchInput.blur();
+    syncBottomBar();
   }
 });
 
@@ -1177,7 +1149,6 @@ function loadAtStartup() {
   }
 }
 
-/* 홈화면 웹앱의 오래된 캐시 업데이트 보조 */
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations()
     .then(regs => regs.forEach(reg => reg.update().catch(() => {})))
