@@ -414,7 +414,7 @@
 
 <script>
 'use strict';
-// BUILD: 2026-08-16-v10-tmap-direct-route
+// BUILD: 2026-08-14-clean-v9-compact-layout
 
 /*
   v7 핵심 원칙
@@ -440,8 +440,8 @@
 */
 
 const PROXY_URL = 'https://script.google.com/macros/s/AKfycbxehvKiQkegGrCZbraOnHYdy15yWmNHHa4ulnGB4MFzBOHbmn8AeeOUU-jOjXBoCSc/exec';
-const STORAGE_KEY = 'facility_addressbook_cache_v2_coords';
-const STORAGE_META_KEY = 'facility_addressbook_meta_v2_coords';
+const STORAGE_KEY = 'facility_addressbook_cache_v1';
+const STORAGE_META_KEY = 'facility_addressbook_meta_v1';
 const REQUEST_TIMEOUT = 20000;
 const RETRY_DELAYS = [800, 1500];
 
@@ -586,10 +586,6 @@ function hydrateRecords(records) {
     const address = String(r.address || '').trim();
     const type = r.type || groupType(category, name);
 
-    // Code.gs에서 함께 내려주는 TMAP 목적지 좌표
-    const latitude = Number.parseFloat(r.latitude);
-    const longitude = Number.parseFloat(r.longitude);
-
     return {
       id: r.id || idx + 1,
       category,
@@ -597,9 +593,6 @@ function hydrateRecords(records) {
       address,
       fullAddress: buildFullAddress(address),
       type,
-      latitude: Number.isFinite(latitude) ? latitude : null,
-      longitude: Number.isFinite(longitude) ? longitude : null,
-      coordinateStatus: String(r.coordinateStatus || ''),
       searchable: normalizeText(`${category} ${name} ${address} ${r.aliases || ''}`)
     };
   }).filter(r => r.name && r.address);
@@ -816,41 +809,15 @@ async function copySelectedAddress() {
   }
 }
 
-function hasValidTmapCoordinate(item) {
-  if (!item) return false;
-
-  const lat = Number(item.latitude);
-  const lng = Number(item.longitude);
-
-  // 대한민국 영역을 넉넉하게 포함하는 범위로 잘못된 좌표를 방지
-  return Number.isFinite(lat) && Number.isFinite(lng) &&
-    lat >= 32 && lat <= 40 && lng >= 123 && lng <= 133;
-}
-
 async function openTmap() {
   if (!state.selected) return;
 
-  const item = state.selected;
-  const address = item.fullAddress;
+  const address = state.selected.fullAddress;
 
-  // 혹시 TMAP에서 직접 길안내가 정상 처리되지 않는 경우를 대비해
-  // 기존처럼 주소도 클립보드에 남겨 둡니다.
   try {
     await navigator.clipboard.writeText(address);
   } catch (_) {}
 
-  if (hasValidTmapCoordinate(item)) {
-    // TMAP 목적지 직접 전달
-    // rGoX = 경도(longitude), rGoY = 위도(latitude)
-    const name = encodeURIComponent(item.name);
-    const lng = encodeURIComponent(String(item.longitude));
-    const lat = encodeURIComponent(String(item.latitude));
-
-    window.location.href = `tmap://route?rGoName=${name}&rGoX=${lng}&rGoY=${lat}`;
-    return;
-  }
-
-  // 좌표가 비어 있거나 잘못된 항목만 기존 주소검색 방식 사용
   window.location.href = `tmap://search?name=${encodeURIComponent(address)}`;
 }
 
